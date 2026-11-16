@@ -27,7 +27,7 @@ namespace ArenaBreak.Core
         public event Action AllWavesCleared;
 
         private readonly List<Transform> _spawnPoints = new List<Transform>();
-        private readonly Dictionary<EnemyAI, ObjectPool<EnemyAI>> _pools = new Dictionary<EnemyAI, ObjectPool<EnemyAI>>();
+        private readonly Dictionary<EnemyBase, ObjectPool<EnemyBase>> _pools = new Dictionary<EnemyBase, ObjectPool<EnemyBase>>();
         private readonly List<Health> _pooledHealths = new List<Health>();
         private int _aliveCount;
 
@@ -94,25 +94,24 @@ namespace ArenaBreak.Core
                 }
             }
 
-            // 이 이벤트를 구독하는 쪽(HUD, 3장)이 생기기 전까지 전체 클리어를 확인하는 임시 로그. 이후 삭제할 것
-            Debug.Log("[Wave] 전체 클리어");
-
             AllWavesCleared?.Invoke();
         }
 
         private IEnumerator SpawnWave(WaveData wave)
         {
-            if (wave == null || wave.EnemyPrefab == null)
+            List<EnemyBase> order = BuildSpawnOrder(wave);
+            if (order.Count == 0)
             {
-                Debug.LogError("WaveSpawner: WaveData 또는 적 프리팹이 비어 있어 이 웨이브를 건너뜁니다.", this);
+                Debug.LogError("WaveSpawner: WaveData에 유효한 적 항목이 없어 이 웨이브를 건너뜁니다.", this);
                 yield break;
             }
 
-            ObjectPool<EnemyAI> pool = GetPool(wave.EnemyPrefab);
             WaitForSeconds interval = new WaitForSeconds(wave.SpawnInterval);
 
-            for (int spawned = 0; spawned < wave.SpawnCount; spawned++)
+            for (int spawned = 0; spawned < order.Count; spawned++)
             {
+                ObjectPool<EnemyBase> pool = GetPool(order[spawned]);
+
                 // 풀이 상한에 도달했고 쉬는 적도 없으면 한 마리가 반환될 때까지 기다린다.
                 // 건너뛰면 웨이브의 적 수가 달라지고, 상한을 넘겨 만들면 풀의 의미가 없다
                 while (pool.CountInactive == 0 && pool.CountAll >= _maxPoolSize)
@@ -122,20 +121,45 @@ namespace ArenaBreak.Core
 
                 SpawnEnemy(pool);
 
-                if (spawned < wave.SpawnCount - 1)
+                if (spawned < order.Count - 1)
                 {
                     yield return interval;
                 }
             }
         }
 
-        private void SpawnEnemy(ObjectPool<EnemyAI> pool)
+        // 항목 순서대로 내보내면 한 종류가 다 나온 뒤에야 다음 종류가 나와서 섞인 웨이브가 되지 않는다
+        private List<EnemyBase> BuildSpawnOrder(WaveData wave)
+        {
+            List<EnemyBase> order = new List<EnemyBase>();
+            if (wave == null) return order;
+
+            foreach (WaveData.SpawnEntry entry in wave.Entries)
+            {
+                if (entry == null || entry.EnemyPrefab == null) continue;
+
+                for (int i = 0; i < entry.Count; i++)
+                {
+                    order.Add(entry.EnemyPrefab);
+                }
+            }
+
+            for (int i = order.Count - 1; i > 0; i--)
+            {
+                int j = UnityEngine.Random.Range(0, i + 1);
+                (order[i], order[j]) = (order[j], order[i]);
+            }
+
+            return order;
+        }
+
+        private void SpawnEnemy(ObjectPool<EnemyBase> pool)
         {
             Transform point = _spawnPoints[UnityEngine.Random.Range(0, _spawnPoints.Count)];
             _spawnPosition = point.position;
             _spawnRotation = point.rotation;
 
-            EnemyAI enemy = pool.Get();
+            EnemyBase enemy = pool.Get();
             enemy.SetPlayer(_player);
 
             _aliveCount++;
@@ -151,23 +175,28 @@ namespace ArenaBreak.Core
         {
             foreach (WaveData wave in _waves)
             {
-                if (wave != null && wave.EnemyPrefab != null)
+                if (wave == null) continue;
+
+                foreach (WaveData.SpawnEntry entry in wave.Entries)
                 {
-                    GetPool(wave.EnemyPrefab);
+                    if (entry != null && entry.EnemyPrefab != null)
+                    {
+                        GetPool(entry.EnemyPrefab);
+                    }
                 }
             }
         }
 
-        private ObjectPool<EnemyAI> GetPool(EnemyAI prefab)
+        private ObjectPool<EnemyBase> GetPool(EnemyBase prefab)
         {
-            if (_pools.TryGetValue(prefab, out ObjectPool<EnemyAI> existing))
+            if (_pools.TryGetValue(prefab, out ObjectPool<EnemyBase> existing))
             {
                 return existing;
             }
 
             // 생성 콜백이 풀 자신을 반환 대상으로 넘겨야 해서 변수를 먼저 선언한다
-            ObjectPool<EnemyAI> pool = null;
-            pool = new ObjectPool<EnemyAI>(
+            ObjectPool<EnemyBase> pool = null;
+            pool = new ObjectPool<EnemyBase>(
                 createFunc: () => CreateEnemy(prefab, pool),
                 actionOnGet: OnGetEnemy,
                 actionOnRelease: OnReleaseEnemy,
@@ -182,12 +211,12 @@ namespace ArenaBreak.Core
             return pool;
         }
 
-        private void Prewarm(ObjectPool<EnemyAI> pool)
+        private void Prewarm(ObjectPool<EnemyBase> pool)
         {
             _spawnPosition = transform.position;
             _spawnRotation = Quaternion.identity;
 
-            EnemyAI[] warmed = new EnemyAI[Mathf.Min(_prewarmCount, _maxPoolSize)];
+            EnemyBase[] warmed = new EnemyBase[Mathf.Min(_prewarmCount, _maxPoolSize)];
             for (int i = 0; i < warmed.Length; i++)
             {
                 warmed[i] = pool.Get();
@@ -200,9 +229,9 @@ namespace ArenaBreak.Core
         }
 
         // 풀 용량이 부족할 때와 미리 만들 때만 Instantiate가 일어난다
-        private EnemyAI CreateEnemy(EnemyAI prefab, ObjectPool<EnemyAI> pool)
+        private EnemyBase CreateEnemy(EnemyBase prefab, ObjectPool<EnemyBase> pool)
         {
-            EnemyAI enemy = Instantiate(prefab, _spawnPosition, _spawnRotation, transform);
+            EnemyBase enemy = Instantiate(prefab, _spawnPosition, _spawnRotation, transform);
             enemy.SetReleaseHandler(pool.Release);
 
             // 풀의 적은 계속 재사용되므로 만들 때 한 번만 구독하고 풀이 사라질 때 해제한다
@@ -213,20 +242,20 @@ namespace ArenaBreak.Core
             return enemy;
         }
 
-        private void OnGetEnemy(EnemyAI enemy)
+        private void OnGetEnemy(EnemyBase enemy)
         {
             // 비활성 상태에서 위치를 옮겨야 활성화될 때 에이전트가 새 위치에서 NavMesh에 자리를 잡는다
             enemy.transform.SetPositionAndRotation(_spawnPosition, _spawnRotation);
             enemy.gameObject.SetActive(true);
         }
 
-        private void OnReleaseEnemy(EnemyAI enemy)
+        private void OnReleaseEnemy(EnemyBase enemy)
         {
             enemy.gameObject.SetActive(false);
         }
 
         // 풀 상한을 넘겨 반환된 적만 여기서 파괴된다
-        private void OnDestroyEnemy(EnemyAI enemy)
+        private void OnDestroyEnemy(EnemyBase enemy)
         {
             Health health = enemy.GetComponent<Health>();
             health.Died -= HandleEnemyDied;

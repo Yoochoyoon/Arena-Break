@@ -131,9 +131,6 @@ namespace ArenaBreak.Player
                 SpawnHitMarker(hit.point);
                 ShotHit?.Invoke(hit);
             }
-
-            // HUD(3장)로 옮기기 전까지만 쓰는 임시 로그. 이관 후 삭제할 것
-            Debug.LogFormat("[Weapon] 발사 - 남은 탄약 {0}/{1}", _currentAmmo, _magazineSize);
         }
 
         private void StartReload()
@@ -142,18 +139,12 @@ namespace ArenaBreak.Player
 
             _isReloading = true;
             _reloadEndTime = Time.time + _reloadDuration;
-
-            // 임시 로그. HUD 이관 후 삭제할 것
-            Debug.LogFormat("[Weapon] 재장전 시작 - 남은 탄약 {0}/{1}", _currentAmmo, _magazineSize);
         }
 
         private void FinishReload()
         {
             _isReloading = false;
             _currentAmmo = _magazineSize;
-
-            // 임시 로그. HUD 이관 후 삭제할 것
-            Debug.LogFormat("[Weapon] 재장전 완료 - 남은 탄약 {0}/{1}", _currentAmmo, _magazineSize);
         }
 
         // 구체에 Collider가 있으면 다음 발사가 구체에 맞는다.
