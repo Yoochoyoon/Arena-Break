@@ -482,6 +482,7 @@ Target_1 / Target_2 / Target_3 에 Health 컴포넌트를 붙여줘.
 만들어서 붙인거 같은데 제대로 작동하는지 어떻게 알 수 있어?
 ```
 **결과**: 코드·씬 변경 없이 방법을 안내함. 플레이 중 표적 `Health`의 `Current Health` 인스펙터 값이 명중마다 10씩 줄어드는지 보는 방법(표적에는 로그·파괴 동작이 없어 화면에는 변화가 없음), 실패 시 점검 순서, 플레이 중 MCP로 값을 읽어 드리는 방법을 제시.
+**사람의 플레이 테스트 판정(후속 입력 전문)**: `아 하이라키에서 확인했어. 작동하네.` → 사용자가 직접 플레이하며 표적 `Health`가 줄어드는 것을 확인함(AI는 직접 확인하지 못했고 사용자의 판정에 따름). 이로써 `WeaponSystem.ShotHit` → `DamageDealer` → `IDamageable`/`Health` 경로가 실제 사격에서 동작함이 사람에 의해 확인됨. 세부 수치(명중당 감소량, 0 이후 변화 없음)는 사용자가 따로 알려 주지 않아 기록하지 않음.
 
 ### 2-3. 적 AI
 
@@ -520,6 +521,44 @@ NavMeshAgent 기반 근접 적을 만들어줘.
 어떤 조건에서 Idle → Chase → Attack 으로 넘어가고, 되돌아오는 조건은 무엇인지.
 ```
 **결과**: 코드 수정 없이 `UpdateIdle`/`UpdateChase`/`UpdateAttack`/`ChangeState`/`HandleDied`의 전이 조건을 표로 설명함. 짚은 점: 한 프레임에 한 단계만 전이(Idle에서 곧바로 Attack으로 가지 않음), 경계에 히스테리시스가 없어 공격 거리 경계에서 Chase↔Attack이 오갈 수 있음, 공격 쿨다운(`_nextAttackTime`)은 상태가 바뀌어도 유지됨, 사망은 어느 상태에서든 `Health.Died`로 Dead가 됨.
+**같은 질문 재요청**: 이후 사용자가 같은 문장으로 다시 요청함(`아까 만든 EnemyAI.cs의 상태 전이 부분만 설명해줘. …`). `EnemyAI.cs`가 바뀌지 않았음을 다시 읽어 확인하고 도식 위주로 간단히 다시 설명함.
+
+#### 시도 2 (적 프리팹 만들기, MCP 직접 작업)
+```
+적 프리팹을 만들어줘. MCP 도구로 직접 해줘.
+
+- Capsule 로 만들고 이름은 Enemy
+- Position (0, 1, 0), Scale 은 기본값
+- NavMeshAgent 추가 — Speed 3.5, Stopping Distance 1.8
+- ArenaBreak.Core.Health 추가 — 최대 체력 30
+- ArenaBreak.Enemy.EnemyAI 추가
+- Assets/Materials 에 주황색 URP Lit 머티리얼을 만들어 적용
+  (표적은 빨강이므로 구분되어야 한다)
+- Assets/Prefabs/Enemy.prefab 으로 저장
+
+끝나면 프리팹의 컴포넌트를 다시 읽어서 각 값이 실제로 들어갔는지 보여줘.
+```
+**결과**: `Assets/Prefabs/Enemy.prefab`과 `Assets/Materials/Enemy_Orange.mat`(URP Lit, `_BaseColor` 주황 1,0.5,0; 이름은 AI가 정함) 생성. 프리팹 파일을 직접 읽어 확인: Capsule(위치 0,1,0, 스케일 1,1,1), `NavMeshAgent` Speed 3.5·Stopping Distance 1.8(Base Offset은 Unity가 1로 자동 설정), `Health` `_maxHealth` 30, `EnemyAI` 기본값(추적 60·공격 2·간격 2·데미지 10·파괴 지연 1, `_player` 비어 있음), 머티리얼은 `Enemy_Orange`(guid 일치) 참조, 컴포넌트 7개. 씬은 저장하지 않음. 플레이 테스트 없음.
+**문제점**: 첫 시도에서 에디터가 플레이 모드였고 편집 도구가 "플레이 모드에서는 쓸 수 없다"며 `NavMeshAgent`·`Health` 추가를 거부함(콘솔에 에러 2건). 플레이 중에 만든 임시 `Enemy`는 플레이를 끝내면 사라지므로 플레이를 중지(사용자 테스트 중이었을 수 있음)하고 처음부터 다시 만듦. 또 요구사항의 "표적은 빨강"과 달리 현재 표적에는 머티리얼이 없어 흰색임(빨간 머티리얼은 1-3에서 삭제).
+**원인 분석**: (본인이 기록)
+**씬 상태**: 프리팹을 만든 뒤 씬에 `Enemy` 인스턴스(프리팹에 연결됨)가 (0,1,0)에 남아 있음 — `Player`와 같은 위치. 씬은 미저장.
+
+#### 후속 프롬프트 (표적 빨강으로 변경, MCP 직접 작업)
+```
+표적 빨강으로 바꿔줘
+```
+**결과**: `Assets/Materials/Target_Red.mat`(URP Lit, `_BaseColor` 빨강 1,0,0; 이름은 AI가 정함, 1-3에서 삭제했던 것을 같은 이름으로 다시 만듦)을 만들어 `Target_1/2/3`의 `MeshRenderer`에 적용. 세 렌더러를 모두 다시 읽어 `sharedMaterial`=`Assets/Materials/Target_Red.mat` 확인, 머티리얼 속성도 확인. 씬은 저장하지 않음.
+**씬 저장(후속 입력 `씬 저장`)**: `manage_scene save` 성공. 저장된 `Arena.unity`에서 `Target_1/2/3`이 `Target_Red.mat`(guid 일치)을 참조하고 `Enemy.prefab` 인스턴스(프리팹 guid)가 들어간 것을 확인. 콘솔 에러 0건. 저장 직후 C 드라이브 여유가 0.24GB로 더 줄어든 것을 확인(디스크 부족 경고 가능성).
+
+#### 후속 프롬프트 (Enemy 인스턴스 이동 + 플레이어 참조 연결, MCP 직접 작업)
+```
+씬에 있는 Enemy 인스턴스를 (0, 1, 10) 으로 옮기고,
+EnemyAI 의 플레이어 참조 칸에 씬의 Player 를 연결해줘.
+
+끝나면 그 칸에 실제로 값이 들어갔는지 다시 읽어서 보여줘.
+```
+**결과**: 씬의 `Enemy` 인스턴스를 월드 좌표 (0,1,10)으로 이동. `EnemyAI._player`에 `Player`의 Transform(instanceID -11830)을 연결하고 컴포넌트를 다시 읽어 `_player`=`Player` 확인(나머지 값은 프리팹 기본값 그대로). 콘솔에 이전과 같은 MCP 쪽 경고/에러 2건(Transform 정수 역직렬화, TransformHandle 직렬화). 씬은 저장하지 않음(프리팹 인스턴스의 위치·`_player` 변경은 미저장 오버라이드). 플레이 테스트 없음.
+**참고**: (0,1,10)은 `Player`(0,1,0) 정면 방향이고 `Target_2`(0,1,8) 바로 뒤라서, `Player`가 정면으로 쏘면 `Target_2`에 가려질 수 있음.
 
 ### 2-4. 웨이브 시스템
 
