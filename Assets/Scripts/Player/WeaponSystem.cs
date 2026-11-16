@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -40,6 +41,8 @@ namespace ArenaBreak.Player
         private float _nextFireTime;
         private float _reloadEndTime;
         private bool _isReloading;
+
+        public event Action<RaycastHit> ShotHit;
 
         private void Awake()
         {
@@ -126,6 +129,7 @@ namespace ArenaBreak.Player
             if (Physics.Raycast(ray, out RaycastHit hit, _range, _hitMask, QueryTriggerInteraction.Ignore))
             {
                 SpawnHitMarker(hit.point);
+                ShotHit?.Invoke(hit);
             }
 
             // HUD(3장)로 옮기기 전까지만 쓰는 임시 로그. 이관 후 삭제할 것
