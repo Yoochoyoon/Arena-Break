@@ -49,8 +49,8 @@
 ```
 **결과**: CLAUDE.md의 "public 필드 금지" 규약과 충돌하는 요청. `[SerializeField] private` 필드 + 읽기 전용 프로퍼티(`CurrentHealth`)로 작성하고, 규약을 따른 이유를 설명함. public 필드 버전은 만들지 않음. 파일은 만들지 않고 코드만 보여줌.
 **후속 입력(전문)**: `규약대로 유지` → public 필드 버전으로 바꾸지 않고 규약 버전을 그대로 유지함.
-**문제점**: (본인이 기록)
-**원인 분석**: (본인이 기록)
+**문제점**: 처음 요청한 방식은 다른 스크립트에서 체력에 직접 접근할 수 있도록 public 필드를 사용하는 것이었다. 하지만 프로젝트의 코딩 규약과 맞지 않아 요청한 형태 그대로 구현되지 않았다.
+**원인 분석**: 프롬프트에서 원하는 구현 방식을 구체적으로 지정했지만, 기존 프로젝트의 CLAUDE.md 규약을 고려하지 못했다. AI가 기존 규약을 우선 적용하면서 요청한 방식과 실제 결과에 차이가 발생했다.
 
 ### 1-2. 플레이어 이동
 
@@ -75,8 +75,8 @@
 씬은 건드리지 말고, 내가 직접 붙일 테니 필요한 세팅 절차만 알려줘.
 ```
 **결과**: `Assets/Scripts/Player/PlayerController.cs` 1개 생성. Unity 콘솔 에러/경고 0건 (플레이 테스트는 아직 안 함).
-**문제점**: (플레이 테스트 후 본인이 기록)
-**원인 분석**: (플레이 테스트 후 본인이 기록)
+**문제점**: 현재 코드 생성과 컴파일 확인은 완료했지만, 실제 플레이 테스트를 진행하지 않아 이동, 점프, 마우스 시점 회전이 정상적으로 작동하는지는 확인하지 못했다.
+**원인 분석**: 코드를 생성하고 Unity에 연결하는 과정에 집중했으며, 실제 입력을 통한 동작 검증은 아직 진행하지 않았기 때문이다.
 
 #### 후속 프롬프트 (코드 설명 요청)
 ```
@@ -111,7 +111,11 @@ Unity 콘솔에 에러가 있는지 확인해줘.
 - 처음 `PlayerController`를 이름으로 추가했더니 `VariableExamples+PlayerController`(다른 클래스)가 붙음. 떼어 내고 정식 이름으로 다시 추가함.
 - 정식 이름 추가가 처음엔 "타입을 찾을 수 없음"으로 실패함. 강제 새로고침/컴파일 후 성공. 즉 앞서 "콘솔 0건"만으로는 컴파일 완료가 확인되지 않았음.
 - 작업 후 콘솔에 MCP 쪽 경고/에러 3건(WebSocket not initialised, Transform 정수 역직렬화, TransformHandle 직렬화). 값 연결 자체는 확인됨.
-**원인 분석**: (본인이 기록)
+**원인 분석**:
+- 프롬프트에서 실제 필드 이름인 `Camera Transform` 대신 `Camera Pivot`이라고 표현해 코드와 인스펙터의 명칭을 정확히 일치시키지 못했다. AI가 실제 코드를 확인한 뒤 올바른 필드에 연결했지만, 처음부터 기존 코드의 필드명을 확인하지 않아 추가 확인 과정이 발생했다.
+- `PlayerController`라는 클래스 이름만으로 컴포넌트를 추가해 다른 스크립트에 선언된 동명의 클래스가 선택되었다. 프로젝트 내에 동일한 클래스명이 존재할 가능성을 고려하지 않고 클래스의 전체 네임스페이스를 지정하지 않은 것이 원인이었다.
+- 정식 클래스 추가가 처음에 실패한 것은 Unity의 스크립트 컴파일 및 타입 갱신이 완료되기 전에 컴포넌트 추가를 시도했기 때문으로 볼 수 있다. 이전에 콘솔 오류가 없다는 사실만으로 새 클래스가 정상적으로 등록되었다고 판단한 것도 확인 과정의 한계였다.
+- MCP 경고와 오류는 씬 작업 중 도구의 연결 및 데이터 직렬화 과정에서 발생했다. 실제 컴포넌트의 필드 연결은 다시 읽어 확인했으므로, 도구의 오류와 작업 결과의 정상 여부를 구분해서 판단할 필요가 있었다.
 
 #### 후속 프롬프트 (씬 저장)
 ```
@@ -131,7 +135,7 @@ Unity 콘솔에 에러가 있는지 확인해줘.
 □ Main Camera 가 Player 의 자식이다
 □ Main Camera 의 Position 이 (0, 0.7, 0) 이다
 ```
-**결과**: 7개 항목 모두 MCP로 조회해 확인, 저장된 `Arena.unity` 파일에서도 연결(guid/fileID)을 확인함. 플레이 테스트는 아직 안 함.
+**결과**: 7개 항목 모두 MCP로 조회해 확인, 저장된 `Arena.unity` 파일에서도 연결(guid/fileID)을 확인함.
 
 ### 1-3. 사격 시스템
 
@@ -174,9 +178,9 @@ Raycast 기반 사격 시스템을 추가해줘.
 파일: Assets/Scripts/Player/WeaponSystem.cs 하나만 생성.
 씬은 건드리지 말고 세팅 절차만 알려줘.
 ```
-**결과**: `Assets/Scripts/Player/WeaponSystem.cs` 1개 생성. 강제 새로고침/컴파일 후 `unity_reflect`로 `ArenaBreak.Player.WeaponSystem`이 Assembly-CSharp에 로드된 것을 확인, 콘솔 에러 0건(MCP WebSocket 경고만). 씬은 건드리지 않음. 플레이 테스트는 아직 안 함.
-**문제점**: (플레이 테스트 후 본인이 기록)
-**원인 분석**: (플레이 테스트 후 본인이 기록)
+**결과**: `Assets/Scripts/Player/WeaponSystem.cs` 1개 생성. 강제 새로고침/컴파일 후 `unity_reflect`로 `ArenaBreak.Player.WeaponSystem`이 Assembly-CSharp에 로드된 것을 확인, 콘솔 에러 0건(MCP WebSocket 경고만). 씬은 건드리지 않음.
+**문제점**: 문제 없음.
+**원인 분석**: 문제 없음.
 
 #### 후속 프롬프트 (재장전 코드 설명 요청)
 ```
@@ -195,7 +199,9 @@ Input Actions 칸에 Assets/InputSystem_Actions.inputactions 를 연결해줘.
 ```
 **결과**: 기존 `Player`에 `ArenaBreak.Player.WeaponSystem` 추가(오브젝트 생성·삭제 없음). `_inputActions`=`Assets/InputSystem_Actions.inputactions`, `_cameraTransform`=Main Camera의 Transform(47998) 연결. 컴포넌트를 다시 읽어 두 칸 값 확인. 나머지는 기본값(간격 0.15, 사거리 50, 탄약 12, 재장전 1.5, 구체 노랑/0.2/0.5, `_hitMask` 전체). 씬은 저장하지 않음. 플레이 테스트는 아직 안 함.
 **문제점**: 작업 후 콘솔에 `PlayerController` 연결 때와 같은 MCP 쪽 경고/에러(WebSocket, Transform 정수 역직렬화, TransformHandle 직렬화)가 보임. 값 연결 자체는 확인됨. 프롬프트에 "MCP로 직접"이라는 말이 없었으나 컴포넌트 추가·연결(오브젝트 생성·삭제 아님)이라 진행함.
-**원인 분석**: (본인이 기록)
+**원인 분석**:
+- 이전 작업과 동일한 MCP 경고가 반복된 것으로 보아 도구의 연결 및 데이터 처리 과정에서 발생한 문제로 추정된다.
+- 프롬프트에 MCP 사용 여부와 씬 저장 여부를 명시하지 않아 작업 방식과 저장 단계에서 추가 입력이 필요했다.
 **후속 입력(전문)**: `씬 저장` → MCP `manage_scene save`로 `Assets/Scenes/Arena.unity` 저장 성공.
 
 #### 후속 프롬프트 (사격 시스템 검증 요청)
@@ -212,13 +218,12 @@ Input Actions 칸에 Assets/InputSystem_Actions.inputactions 를 연결해줘.
 □ 구체를 향해 다시 쏴도 구체에 막히지 않는다
 □ 콘솔에 에러가 없다
 
-검증해
+검증해줘.
 ```
 **결과**: AI는 마우스/키 입력을 보낼 수 없어서 동작 항목은 판정하지 못함(CLAUDE.md: 플레이 테스트 판정은 사람). 코드 경로만 항목별로 확인했고, 플레이 모드를 3초 실행해 콘솔 로그 0건(에러 없음)을 확인한 뒤 정지함. `Target_1~3`은 앞서 삭제해서 현재 씬에 없음 → 표적 항목은 검증 불가.
-**문제점**: (플레이 테스트 후 본인이 기록)
-**원인 분석**: (플레이 테스트 후 본인이 기록)
+**문제점**: 문제없음.
+**원인 분석**: 문제없음.
 **후속 입력(전문)**: `벽만으로 테스트` → 표적은 다시 만들지 않고 벽만으로 사람이 테스트하기로 함. 참고로 `Wall`의 자식 N/S/W/E 4개에 모두 BoxCollider가 있음을 조회로 확인함(씬 수정 없음).
-**원인 분석**: (본인이 기록)
 
 ### 1-4. 과제 — 대시 또는 조준
 
@@ -231,8 +236,8 @@ Input Actions 칸에 Assets/InputSystem_Actions.inputactions 를 연결해줘.
 기존 PlayerController와 WeaponSystem은 수정하지 말고 새로운 스크립트를 만들어서 구현해줘.
 ```
 **결과**: 코드를 쓰기 전에 규약 충돌을 보고하고 설계안을 제시함(파일 생성 없음, 선택 대기). 충돌 지점: 감도를 결정하는 `_lookSensitivity`가 `PlayerController`의 private 필드라 "수정하지 말 것"과 "감도를 낮출 것"을 새 스크립트만으로는 깔끔하게 동시에 만족할 수 없음. 또 `InputSystem_Actions`의 Player 맵에는 우클릭(Aim) 액션이 없어 Reload처럼 코드에서 `<Mouse>/rightButton` 액션을 만들어야 함.
-**문제점**: (본인 정리) 기본적인 기능은 요청했지만 카메라 전환 방식이나 마우스 감도 조절 방법에 대한 설명이 부족했다.
-**원인 분석**: (본인 정리) 요청에 카메라 전환 방식과 감도 조절 방법이 구체적으로 적혀 있지 않았다. (AI 쪽 사실: 이 시도에서는 코드가 만들어지지 않았고, 감도가 PlayerController의 private 필드라는 규약 충돌 보고와 설계안만 나옴.)
+**문제점**: 기본적인 기능은 요청했지만 카메라 전환 방식이나 마우스 감도 조절 방법에 대한 설명이 부족했다.
+**원인 분석**: 요청에 카메라 전환 방식과 감도 조절 방법이 구체적으로 적혀 있지 않았다. (AI 쪽 사실: 이 시도에서는 코드가 만들어지지 않았고, 감도가 PlayerController의 private 필드라는 규약 충돌 보고와 설계안만 나옴.)
 
 #### 시도 2
 ```
@@ -249,7 +254,7 @@ Input Actions 칸에 Assets/InputSystem_Actions.inputactions 를 연결해줘.
 ```
 **무엇을 바꿨나**: 시도 1에서 AI가 제시한 A안(PlayerController에 프로퍼티 추가)을 고르지 않고 "절대 수정하지 말 것"을 유지하며 요구사항을 구체화함(FOV 부드러운 전환, 감도 정확히 절반, 인스펙터 조절, 구현 전 현황 확인, 구현 후 영향 확인). (본인 정리) FOV가 자연스럽게 변하도록 요청 / 조준 중 마우스 감도 절반으로 변경 / Inspector에서 값 조절 가능하도록 요청 / 기존 스크립트를 수정하지 않고 별도 컴포넌트로 구현하도록 요청. (참고: "기존 스크립트 수정 금지"는 시도 1 프롬프트에도 이미 있었고, 시도 2에서 "절대"로 강조됨.)
 **결과**: 구현 전 확인 — 카메라는 Main Camera(FOV 60, URP)이고 어떤 스크립트도 `fieldOfView`를 건드리지 않음. 감도는 `PlayerController.HandleLook()`이 `Look` 액션 값에 private `_lookSensitivity`를 곱해 사용. 따라서 `AimController.cs`가 조준 중 `Look` 액션 바인딩에 `ScaleVector2` 프로세서 override를 걸어 입력값을 절반으로 줄이고, 떼면 override를 제거하는 방식(B안)으로 구현. FOV는 지수 보간으로 전환. 우클릭은 코드에서 만든 `InputAction`. API는 `unity_reflect`와 로컬 Input System 패키지 소스로 확인(`ApplyBindingOverride(action, index, binding)`은 action.bindings 기준 인덱스). 컴파일 후 `AimController` 타입 로드·콘솔 0건 확인. `PlayerController.cs`/`WeaponSystem.cs`는 구현 전후 sha256이 동일해 수정되지 않음을 확인. 씬에는 아직 붙이지 않음. 플레이 테스트는 아직 안 함.
-**배운 점**: (본인 정리) 처음부터 자세하게 요청하기보다는 구현 결과를 확인하고 부족한 부분을 추가로 요청하는 것이 중요하다는 것을 알게 되었다.
+**배운 점**: 처음부터 자세하게 요청하기보다는 구현 결과를 확인하고 부족한 부분을 추가로 요청하는 것이 중요하다는 것을 알게 되었다.
 
 #### 후속 프롬프트 (씬에 AimController 붙이기, MCP 직접 작업)
 ```
@@ -257,16 +262,20 @@ Player에 붙여줘
 ```
 **결과**: 기존 `Player`에 `ArenaBreak.Player.AimController` 추가(오브젝트 생성·삭제 없음). `_inputActions`=`Assets/InputSystem_Actions.inputactions`, `_camera`=Main Camera(Camera 컴포넌트 47996) 연결을 다시 읽어 확인. 나머지는 기본값(조준 FOV 40, 감도 배율 0.5, 전환 속도 12). 플레이 모드 3초 실행 시 콘솔 로그 0건(조준 입력은 하지 않음). 씬은 저장하지 않음. 우클릭 조준 동작은 아직 테스트 안 함.
 **문제점**: 연결 직후 콘솔에 MCP 쪽 경고(Camera 정수 역직렬화)가 1건 보였으나 값 연결은 확인됨.
-**원인 분석**: (본인이 기록)
+**원인 분석**: 
+- MCP의 Camera 데이터 역직렬화 과정에서 발생한 경고로 추정된다. 필드 값을 다시 읽어 연결은 확인했지만, 조준 입력을 직접 테스트하지 않아 실제 동작까지 검증하지는 못했다.
+- 최초 요청에 씬 저장이 포함되지 않아 별도로 저장 명령을 입력해야 했다.
 **후속 입력(전문)**: `씬 저장` → MCP `manage_scene save`로 `Assets/Scenes/Arena.unity` 저장 성공.
 
 #### 후속 프롬프트 (조준 중 이동 속도 감소 추가)
 ```
 추가로 조준 중에는 이동 속도가 느려지겠끔 바꿔줘.
 ```
-**결과**: `PlayerController`는 수정하지 않고 `AimController.cs`만 확장. 이동 속도(`_moveSpeed`)도 PlayerController의 private 필드라 직접 못 바꿔서, 감도와 같은 방식으로 `Move` 액션 입력값에 `ScaleVector2` 프로세서를 조준 중에만 덧씌움(컴포지트 바인딩 자체에 적용). 감도·이동 처리를 `InputScaler` 중첩 클래스로 묶어 중복을 줄임. 인스펙터 `Aim Move Speed Multiplier`(기본 0.5, 값은 AI가 정함) 추가. 컴파일 후 컴포넌트를 다시 읽어 새 필드가 로드되고 기존 연결(`_inputActions`, `_camera`)이 유지됨을 확인, 콘솔 에러 0건, 플레이 모드 3초 실행 로그 0건. `PlayerController.cs`/`WeaponSystem.cs` sha256 변동 없음. 씬은 저장하지 않음. 조준 중 실제 이동 속도는 아직 테스트 안 함.
-**문제점**: (본인이 기록)
-**원인 분석**: (본인이 기록)
+**결과**: `PlayerController`는 수정하지 않고 `AimController.cs`만 확장. 이동 속도(`_moveSpeed`)도 PlayerController의 private 필드라 직접 못 바꿔서, 감도와 같은 방식으로 `Move` 액션 입력값에 `ScaleVector2` 프로세서를 조준 중에만 덧씌움(컴포지트 바인딩 자체에 적용). 감도·이동 처리를 `InputScaler` 중첩 클래스로 묶어 중복을 줄임. 인스펙터 `Aim Move Speed Multiplier`(기본 0.5, 값은 AI가 정함) 추가. 컴파일 후 컴포넌트를 다시 읽어 새 필드가 로드되고 기존 연결(`_inputActions`, `_camera`)이 유지됨을 확인, 콘솔 에러 0건, 플레이 모드 3초 실행 로그 0건. `PlayerController.cs`/`WeaponSystem.cs` sha256 변동 없음. 씬은 저장하지 않음. 조준 중 실제 이동.
+**문제점**:
+- 코드 수정 과정에서 `PlayerController`를 직접 변경하지 않고 입력값을 조절하는 방식을 사용해 구현 구조가 다소 복잡해졌다.
+**원인 분석**:
+- 기존 `PlayerController`를 수정하지 않는 조건 때문에 `Move` 액션에 입력 배율을 적용하는 방식을 선택했다. 실제 테스트 결과 조준 중 이동 속도 감소와 해제가 정상 작동했다.
 
 #### 대시 (추가 구현)
 ```
@@ -274,7 +283,7 @@ Shift 키를 누르면 캐릭터가 바라보는 방향으로 빠르게 돌진�
 대시를 사용한 후에는 잠시 동안 다시 사용할 수 없도록 쿨다운도 넣어줘.
 기존 PlayerController와 WeaponSystem은 수정하지 말고 새로운 스크립트로 만들어줘.
 ```
-**결과**: `Assets/Scripts/Player/DashController.cs` 1개 생성. 에셋의 `Sprint` 액션이 이미 Left Shift에 묶여 있어 쓰지 않고, 코드에서 `<Keyboard>/leftShift` 대시 액션을 별도로 만듦(입력 에셋 참조 불필요). 누른 순간의 `transform.forward`로 방향을 고정해 `_dashSpeed`(20) × `_dashDuration`(0.2초) 동안 `CharacterController.Move`를 추가 호출하고, 쿨다운 `_cooldown`(1초)은 대시가 끝난 시점부터 셈(수치와 기준은 AI가 정함). 컴파일 후 `DashController` 타입이 Assembly-CSharp에 로드됨, 콘솔 에러 0건, `PlayerController.cs`/`WeaponSystem.cs` sha256 변동 없음. 씬에는 아직 붙이지 않음. 플레이 테스트는 아직 안 함.
+**결과**: `Assets/Scripts/Player/DashController.cs` 1개 생성. 에셋의 `Sprint` 액션이 이미 Left Shift에 묶여 있어 쓰지 않고, 코드에서 `<Keyboard>/leftShift` 대시 액션을 별도로 만듦(입력 에셋 참조 불필요). 누른 순간의 `transform.forward`로 방향을 고정해 `_dashSpeed`(20) × `_dashDuration`(0.2초) 동안 `CharacterController.Move`를 추가 호출하고, 쿨다운 `_cooldown`(1초)은 대시가 끝난 시점부터 셈(수치와 기준은 AI가 정함). 컴파일 후 `DashController` 타입이 Assembly-CSharp에 로드됨, 콘솔 에러 0건, `PlayerController.cs`/`WeaponSystem.cs` sha256 변동 없음. 씬에는 아직 붙이지 않음. 
 **문제점**: (본인이 기록)
 **원인 분석**: (본인이 기록)
 
@@ -301,33 +310,15 @@ Player에 붙여줘
 ```
 **무엇을 바꿨나**: 첫 구현의 속도+지속시간 방식을 "거리" 방식으로 바꾸고, 끝으로 갈수록 느려지는 감속 곡선과 쿨다운 2초를 요구함. (참고: Left Shift, 바라보는 방향, 대시 중 중복 방지, 기존 스크립트 수정 금지는 첫 구현에도 이미 있었음.)
 **결과**: 구현 전 확인 — `PlayerController.HandleMovement()`가 매 프레임 WASD+중력을 합쳐 `CharacterController.Move`를 한 번 호출. `Sprint` 액션이 Left Shift에 묶여 있으나 읽는 스크립트는 없음. `DashController.cs`를 수정: `_dashDistance`(4m, 인스펙터), `_dashDuration`(0.2초), `_cooldown`(2초, 대시 종료 시점부터). 프레임마다 속도를 적분하지 않고 시간에 대한 진행도(1−(1−t)²)의 차이만큼 이동해서 프레임레이트와 무관하게 총 거리가 `_dashDistance`이고 끝에서 속도가 0으로 수렴. 대시 중에는 입력을 받지 않아 중복 실행 없음. 컴파일 후 새 필드가 로드됨. 씬 컴포넌트에 이전 `_cooldown` 1이 남아 있어 MCP로 2로 맞춰 다시 읽어 확인. 콘솔 에러 0건, 플레이 3초 실행 로그 0건, `PlayerController.cs`/`WeaponSystem.cs` sha256 변동 없음. 기존 이동·공격이 정상인지는 입력을 보낼 수 없어 확인하지 못함(코드 수정이 없다는 것까지만 확인). 씬은 저장하지 않음.
-**배운 점**: (본인이 기록)
+**배운 점**: 처음부터 자세하게 요청하기보다는 구현 결과를 확인하고 부족한 부분을 추가로 요청하는 것이 중요하다는 것을 알게 되었다.
 
 #### 후속 프롬프트 (조준 중 대시 불가)
 ```
 조준 중에는 대시가 불가능했음 좋겠어.
 ```
 **결과**: `AimController`에 조준 상태를 읽는 프로퍼티 `IsAiming`을 추가하고(AimController 수정), `DashController`가 같은 오브젝트의 `AimController`를 선택적으로 참조(`TryGetComponent`, Awake)해 조준 중에는 Shift 입력을 무시하게 함. 무시된 입력은 쿨다운을 소모하지 않고, 이미 시작한 대시는 중단하지 않음. `AimController`가 없으면 제한 없이 대시. 씬 연결 칸은 추가되지 않음. 컴파일 후 `IsAiming` 프로퍼티 로드 확인, 콘솔 에러 0건, 플레이 3초 실행 로그 0건, `PlayerController.cs`/`WeaponSystem.cs` sha256 변동 없음. 조준 중 대시가 실제로 막히는지는 입력을 보낼 수 없어 확인하지 못함. 씬은 저장하지 않음.
-**문제점**: (본인이 기록)
-**원인 분석**: (본인이 기록)
-
-#### 본인 정리 (원문)
-```
-1-4. 조준 기능 구현
-1차 시도
-조준 기능을 만들어달라고 간단하게 요청했다.
-결과: 기본적인 기능은 요청했지만 카메라 전환 방식이나 마우스 감도 조절 방법에 대한 설명이 부족했다.
-2차 시도
-첫 번째 프롬프트에서 부족했던 부분을 추가했다.
-
-* FOV가 자연스럽게 변하도록 요청
-* 조준 중 마우스 감도 절반으로 변경
-* Inspector에서 값 조절 가능하도록 요청
-* 기존 스크립트를 수정하지 않고 별도 컴포넌트로 구현하도록 요청
-
-느낀 점
-처음부터 자세하게 요청하기보다는 구현 결과를 확인하고 부족한 부분을 추가로 요청하는 것이 중요하다는 것을 알게 되었다.
-```
+**문제점**: 문제 없음.
+**원인 분석**: 문제 없음.
 
 ---
 
@@ -430,8 +421,8 @@ IDamageable 인터페이스와 Health 컴포넌트로 나누는 게 좋을까?
 이번 작업에서는 코드 구현만 진행하고 씬 연결이나 다른 기능 추가는 하지 마.
 ```
 **결과**: 코드를 쓰기 전에 충돌을 보고하고 결정을 기다림(파일 변경 없음). 충돌: 명세의 `TakeDamage(int)`로 `IDamageable`을 바꾸면 이미 씬에 붙어 있는 `DamageDealer.cs`가 `float`를 넘겨 컴파일 오류가 남. 그런데 명세는 "다른 스크립트 수정 금지·파일 2개만"이라 둘을 동시에 만족할 수 없음. 그 외 차이: 기존 `Health`는 float 기반이고 무적 시간 옵션이 있음(명세에는 없음).
-**문제점**: (본인이 기록)
-**원인 분석**: (본인이 기록)
+**문제점**: 기존 DamageDealer의 데미지 타입과 새 명세의 데미지 타입이 달라 함께 수정하지 않으면 컴파일 오류가 발생할 수 있었다.
+**원인 분석**: 처음 명세를 작성할 때 기존 DamageDealer가 float 타입을 사용한다는 점을 고려하지 못했다. 파일 수정 범위를 제한한 조건과 기존 코드의 호환성이 충돌했다.
 
 #### 시도 3 (A안 + int 확정, 3개 파일 수정)
 ```
@@ -451,8 +442,8 @@ TakeDamage는 명세대로 int를 유지하고, DamageDealer의 _damage도 int�
 **CLAUDE.md 규칙 초과 기록**: 작업 규칙 1("한 번에 파일 1~2개만 수정")을 초과함 — 3개 파일 수정. 사용자가 명세의 "파일 2개만"과 충돌함을 알고 A안으로 명시 승인. 또한 `DamageDealer.cs`는 명세의 "다른 스크립트 수정 금지"의 예외로 사용자가 허용.
 **결과**: 컴파일 후 `IDamageable.TakeDamage(int)` 시그니처 로드, `Health` 멤버(`Restore`/`TakeDamage`, `CurrentHealth`/`IsDead`/`MaxHealth`, 이벤트 `Died`/`HealthChanged`) 확인, 콘솔 에러·경고 0건. 씬 컴포넌트를 다시 읽으니 `DamageDealer._damage`=10(int), `Health._maxHealth`=100(int) 유지. `PlayerController`·`WeaponSystem`·`AimController`·`DashController`와 `Arena.unity`는 수정 전후 sha256 동일(씬 미수정). 플레이 모드에서 기존 `Player`의 `Health`를 호출해 로직 확인(새 오브젝트 없음, 종료 후 원복): 시작 100/100 → 데미지 0·-5 무시(이벤트 0회) → 30 데미지 70/100과 이벤트 → 1000 데미지 0으로 보정·`Died` 1회 → 사망 후 데미지 무시(이벤트 추가 없음) → `Restore` 100/100 이벤트 발생(`Died`는 그대로 1회).
 **확인하지 못한 것**: 총으로 쏴서 실제로 데미지가 들어가는지(맞을 대상이 씬에 없음), `Health`의 이벤트를 구독하는 HUD(아직 없음). 플레이 중 Inspector에서 현재 체력을 직접 고치면 이벤트 없이 값만 바뀜(범위만 보정).
-**문제점**: (본인이 기록)
-**원인 분석**: (본인이 기록)
+**문제점**: 특별한 문제 없이 데미지 전달, 벽·바닥의 데미지 제외, 연사, 탄약 소모, 재장전, 명중 구체 생성 및 자동 소멸까지 정상적으로 작동했다.
+**원인 분석**: WeaponSystem의 명중 이벤트를 DamageDealer가 구독하는 구조로 역할을 분리했으며, 기존 무기 기능을 유지하면서 데미지 시스템을 연결했다. 플레이 테스트를 통해 각 기능이 의도한 대로 동작하는 것을 확인했다.
 
 #### 후속 프롬프트 (ShotHit → DamageDealer 구조 현재 상태 확인, 코드 수정 없음)
 ```
@@ -469,10 +460,66 @@ TakeDamage는 명세대로 int를 유지하고, DamageDealer의 _damage도 int�
 ```
 **결과**: 코드·씬 변경 없음(sha256 동일). 정적 확인: `WeaponSystem`의 변경은 `git diff` 기준 3줄 추가뿐(`using System;`, `ShotHit` 선언, 명중 시 `ShotHit?.Invoke(hit)`)이고 기존 줄은 그대로. 플레이 모드에서 리플렉션으로 실제 경로를 호출해 확인(새 오브젝트 없음, 종료 후 원복): ① `Fire()` 호출 시 `ShotHit`가 1회 발생(맞은 콜라이더 `N` 벽), 구독자는 `DamageDealer.HandleShotHit` 1개. ② 실제 Raycast로 얻은 명중 정보를 `ShotHit`로 전달하면 `Player`의 `Health`가 100→90, `HealthChanged` 발생. ③ `_damage`는 `[SerializeField, Min(0)] int`(컴포넌트 읽기 10)이고 값을 25로 바꾸면 100→… 90→65로 25 감소(리플렉션으로 변경, Inspector UI 조작은 하지 않음). ④ 벽 `N`·바닥 `Floor` 명중은 체력 변화·이벤트 없음, 캐시에 null로 기록. ⑤ 탄약 12→11→10, 명중 구체 생성(Collider 없음 확인).
 **확인하지 못한 것**: 플레이 모드가 첫 프레임(`Time.frameCount`=1, `Time.time`=0)에서 진행되지 않아(에디터가 백그라운드 상태로 보임) 시간이 필요한 항목 — 연사 간격 0.15초와 누르고 있기 연사, 재장전 1.5초 후 12발 복귀, 재장전 중 발사 불가, 명중 구체 0.5초 후 소멸 — 은 확인하지 못함. 재장전은 시작(`_isReloading`=true, 로그 출력)까지만 확인. 이 경우 이전 기록의 "플레이 3초 실행, 콘솔 0건"도 첫 프레임(Awake/OnEnable)까지만 검증된 것이었음.
+**문제점**: 코드와 씬에 변경을 가하지 않고 기존 데미지 전달 구조와 주요 기능을 확인했다. 일부 기능은 실제 플레이 테스트를 통해 추가 확인이 필요했지만, 이후 테스트에서 연사 간격, 재장전, 재장전 중 발사 제한, 명중 구체의 자동 소멸까지 모두 정상 작동하는 것을 확인했다.
+**원인 분석**: 처음 확인 과정에서는 에디터의 플레이 시간이 진행되지 않아 시간에 따라 동작하는 기능을 검증할 수 없었다. 이후 정상적인 플레이 테스트를 진행하여 남은 기능까지 확인했다.
+
+#### 후속 프롬프트 (표적에 Health 붙이기 요청 — 대상 오브젝트 없음)
+```
+Target_1 / Target_2 / Target_3 에 Health 컴포넌트를 붙여줘.
+최대 체력은 30으로 설정.
+
+끝나면 세 오브젝트의 Health 값을 다시 읽어서 실제로 30이 들어갔는지 보여줘.
+```
+**결과**: 수행하지 못함. 씬을 조회하니 `Target` 이름의 오브젝트가 0개(루트는 Directional Light, Global Volume, Floor, Wall, SpawnPoints, Player). 표적 3개는 1-3 작업 중 사용자 요청으로 삭제했고 이후 다시 만들지 않았음. 표적을 새로 만드는 것은 규약 작업 규칙 2(씬 오브젝트 임의 생성 금지)에 따라 허락을 받아야 해서 보류하고 확인을 요청함.
+**문제점**: (본인이 기록)
+**원인 분석**: (본인이 기록)
+**후속 입력(전문)**: `다시 만들고 붙이기` → 허락으로 받아 진행(MCP 직접 작업).
+**후속 결과**: `Targets`(0,0,0) 아래에 Cube `Target_1/2/3`(Scale 1,2,1, 위치 x -3/0/3, y 1, z 8)을 다시 만들고 각각 `Health`를 추가해 `_maxHealth`를 30으로 설정. 세 오브젝트의 `Health`를 다시 읽어 `MaxHealth`/`_maxHealth`=30 확인. 편집 모드라 `CurrentHealth`는 0(`Awake`가 플레이 시작 때 최대 체력으로 채움). 머티리얼은 만들지 않음(요청 없음). 씬은 저장하지 않음. 총으로 쏴서 `Died`까지 가는지는 미확인.
+**씬 저장(후속 입력 `씬 저장`, `다시 저장`)**: 첫 저장은 `TimeoutError`로 실패 — C 드라이브 여유 공간이 거의 0이라 Unity의 "Low disk space" 경고창(1GB 미만)이 뜬 것이 원인으로 추정(확정 아님). 사용자가 공간을 확보한 뒤(여유 0.87GB) 재시도해 성공. 저장된 `Arena.unity`에서 `Targets`, `Target_1/2/3`(`_maxHealth: 30`)과 함께 이전에 저장 안 된 채 남아 있던 `Player`의 `Health`(`_maxHealth: 100`)·`DamageDealer`도 파일에 들어간 것을 확인. 콘솔 에러 0건. 실패한 동안 디스크의 씬 파일은 해시가 같아 손상되지 않았음.
+
+#### 후속 프롬프트 (붙인 것이 제대로 작동하는지 확인하는 방법 질문)
+```
+만들어서 붙인거 같은데 제대로 작동하는지 어떻게 알 수 있어?
+```
+**결과**: 코드·씬 변경 없이 방법을 안내함. 플레이 중 표적 `Health`의 `Current Health` 인스펙터 값이 명중마다 10씩 줄어드는지 보는 방법(표적에는 로그·파괴 동작이 없어 화면에는 변화가 없음), 실패 시 점검 순서, 플레이 중 MCP로 값을 읽어 드리는 방법을 제시.
+
+### 2-3. 적 AI
+
+#### 시도 1
+```
+NavMeshAgent 기반 근접 적을 만들어줘.
+
+요구사항:
+- 상태는 Idle / Chase / Attack / Dead — enum + switch로 단순하게.
+  상태 머신 프레임워크나 별도 클래스를 만들지 마
+- 플레이어를 추적. 추적 시작 거리와 공격 거리는 인스펙터에서 조절
+  (기본: 추적 60m, 공격 2m)
+- 공격은 2초 간격, 데미지 10. 앞서 만든 IDamageable로 줄 것
+- 공격할 때마다 콘솔에 로그를 남길 것.
+  지금은 플레이어에게 Health가 없어서 공격이 일어나는지 로그로만 확인할 수 있다
+- 체력은 앞서 만든 Health 컴포넌트를 쓴다. EnemyAI가 체력을 따로 갖지 마
+- Health의 사망 이벤트를 구독해서 Dead 상태로 가고, 1초 뒤 오브젝트 파괴
+- 구독한 이벤트는 OnDisable에서 반드시 구독 해제할 것
+- 플레이어는 태그가 아니라 [SerializeField] Transform 참조로 받을 것
+  (씬에 하나뿐이지만, 매 프레임 Find 하지 않기 위해)
+- 단, 이 적은 프리팹으로 만들어 웨이브가 스폰할 것이다.
+  프리팹은 씬 오브젝트를 참조할 수 없으니, 스폰한 쪽이 플레이어를 넣어줄 수 있게
+  공개 메서드를 하나 둘 것
+
+파일: Assets/Scripts/Enemy/EnemyAI.cs 하나만 생성.
+씬과 프리팹은 건드리지 말고 세팅 절차만 알려줘.
+```
+**결과**: `Assets/Scripts/Enemy/EnemyAI.cs` 1개 생성(씬·프리팹 미수정). `enum State { Idle, Chase, Attack, Dead }` + `switch`, `[RequireComponent]`로 `NavMeshAgent`·`Health` 필수, 추적/공격 거리(60/2)·공격 간격(2초)·데미지(10, int)·파괴 지연(1초)을 인스펙터로 노출, 플레이어는 `[SerializeField] Transform _player`와 공개 메서드 `SetPlayer(Transform)`, 공격 시 `IDamageable.TakeDamage` 호출(플레이어의 `IDamageable`은 `SetPlayer`/`Awake`에서 한 번만 캐싱)과 임시 `Debug.LogFormat`, `Health.Died`는 `OnEnable` 구독/`OnDisable` 해제, 사망 시 Dead 상태·에이전트 비활성화·`Destroy(gameObject, 지연)`. NavMesh 위가 아니면 `Update`를 건너뜀. API는 `unity_reflect`로 `NavMeshAgent` 멤버(`isOnNavMesh`, `isStopped`, `SetDestination`) 확인. 컴파일 후 `EnemyAI` 타입·`SetPlayer` 로드, 콘솔 0건. 다른 스크립트와 `Arena.unity`는 sha256 동일. 플레이 테스트는 하지 않음.
+**확인한 사실(요구사항과 다른 점)**: 요구사항은 "플레이어에게 Health가 없다"였으나, 편집 중인 씬에는 이전에 붙인 `Health`·`DamageDealer`가 저장 안 된 채 남아 있음(저장된 `Arena.unity`에는 없음). 씬을 저장하면 적의 공격이 실제 데미지로 들어감.
 **문제점**: (본인이 기록)
 **원인 분석**: (본인이 기록)
 
-### 2-3. 적 AI
+#### 후속 프롬프트 (상태 전이 설명 요청)
+```
+방금 만든 EnemyAI.cs의 상태 전이 부분만 설명해줘.
+어떤 조건에서 Idle → Chase → Attack 으로 넘어가고, 되돌아오는 조건은 무엇인지.
+```
+**결과**: 코드 수정 없이 `UpdateIdle`/`UpdateChase`/`UpdateAttack`/`ChangeState`/`HandleDied`의 전이 조건을 표로 설명함. 짚은 점: 한 프레임에 한 단계만 전이(Idle에서 곧바로 Attack으로 가지 않음), 경계에 히스테리시스가 없어 공격 거리 경계에서 Chase↔Attack이 오갈 수 있음, 공격 쿨다운(`_nextAttackTime`)은 상태가 바뀌어도 유지됨, 사망은 어느 상태에서든 `Health.Died`로 Dead가 됨.
 
 ### 2-4. 웨이브 시스템
 
