@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using ArenaBreak.Core;
 using UnityEngine;
 using UnityEngine.AI;
@@ -37,10 +39,14 @@ namespace ArenaBreak.Enemy
         private State _state = State.Idle;
         private float _nextAttackTime;
 
+        private Action<EnemyAI> _releaseHandler;
+        private WaitForSeconds _releaseWait;
+
         private void Awake()
         {
             _agent = GetComponent<NavMeshAgent>();
             _health = GetComponent<Health>();
+            _releaseWait = new WaitForSeconds(_destroyDelay);
 
             CachePlayerDamageable();
         }
@@ -48,6 +54,8 @@ namespace ArenaBreak.Enemy
         private void OnEnable()
         {
             _health.Died += HandleDied;
+
+            ResetForReuse();
         }
 
         private void OnDisable()
@@ -60,6 +68,12 @@ namespace ArenaBreak.Enemy
         {
             _player = player;
             CachePlayerDamageable();
+        }
+
+        // 풀에서 꺼낸 적만 반환 방법을 받는다. 받지 못한 적(씬에 직접 놓은 적)은 예전처럼 파괴한다
+        public void SetReleaseHandler(Action<EnemyAI> releaseHandler)
+        {
+            _releaseHandler = releaseHandler;
         }
 
         private void Update()
@@ -160,8 +174,38 @@ namespace ArenaBreak.Enemy
             _state = State.Dead;
             _agent.enabled = false;
 
-            // 풀링으로 전환할 때 Destroy 대신 풀 반환으로 바꿀 지점
-            Destroy(gameObject, _destroyDelay);
+            StartCoroutine(ReleaseAfterDelay());
+        }
+
+        private IEnumerator ReleaseAfterDelay()
+        {
+            yield return _releaseWait;
+
+            if (_releaseHandler != null)
+            {
+                _releaseHandler(this);
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
+        }
+
+        // 풀에서 다시 꺼낸 적이 이전 생의 사망 상태, 공격 타이머, 이동 경로를 들고 나오지 않게 한다
+        private void ResetForReuse()
+        {
+            _state = State.Idle;
+            _nextAttackTime = 0f;
+
+            _health.Restore();
+
+            // 사망할 때 꺼 둔 에이전트를 다시 켜야 새 위치에서 NavMesh에 자리를 잡는다
+            _agent.enabled = true;
+            if (_agent.isOnNavMesh)
+            {
+                _agent.ResetPath();
+                _agent.isStopped = false;
+            }
         }
 
         private float SqrDistanceToPlayer()
