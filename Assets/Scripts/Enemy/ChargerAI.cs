@@ -1,3 +1,4 @@
+using ArenaBreak.Core;
 using UnityEngine;
 
 namespace ArenaBreak.Enemy
@@ -29,6 +30,15 @@ namespace ArenaBreak.Enemy
         [SerializeField, Min(0f)] private float _windupDuration = 0.6f;
         [SerializeField, Min(0f)] private float _recoveryDuration = 0.8f;
 
+        [Header("Contact Damage")]
+        [SerializeField, Min(0)] private int _contactDamage = 10;
+        [Tooltip("플레이어와의 거리가 이 값 이하이면 닿은 것으로 본다")]
+        [SerializeField, Min(0f)] private float _contactRange = 1.5f;
+        // 간격이 없으면 붙어 있는 동안 매 프레임 데미지가 들어가 순식간에 죽는다
+        [SerializeField, Min(0.1f)] private float _contactInterval = 1f;
+
+        private IDamageable _playerDamageable;
+        private float _nextContactTime;
         private State _state = State.Chase;
         private Vector3 _chargeDirection;
         private Vector3 _chargeStartPosition;
@@ -37,6 +47,18 @@ namespace ArenaBreak.Enemy
         private float _recoveryEndTime;
         private float _nextChargeTime;
 
+        protected override void Awake()
+        {
+            base.Awake();
+
+            CachePlayerDamageable();
+        }
+
+        protected override void OnPlayerChanged()
+        {
+            CachePlayerDamageable();
+        }
+
         // 돌진이 끝난 채 반환되면 빠른 속도, 후딜레이 상태, 쿨다운이 다음 생으로 넘어가므로 전부 되돌린다
         protected override void ResetForReuse()
         {
@@ -44,6 +66,7 @@ namespace ArenaBreak.Enemy
 
             _state = State.Chase;
             _nextChargeTime = 0f;
+            _nextContactTime = 0f;
             Agent.speed = _chaseSpeed;
         }
 
@@ -51,6 +74,8 @@ namespace ArenaBreak.Enemy
         {
             // 스폰 위치가 NavMesh 밖이면 에이전트 호출이 프레임마다 에러를 쏟아낸다
             if (IsDead || Player == null || !Agent.isOnNavMesh) return;
+
+            TryContactDamage();
 
             switch (_state)
             {
@@ -156,6 +181,30 @@ namespace ArenaBreak.Enemy
         {
             Agent.isStopped = true;
             Agent.velocity = Vector3.zero;
+        }
+
+        // 에이전트는 물리 충돌 이벤트를 주지 않아서 거리로 접촉을 판정한다
+        private void TryContactDamage()
+        {
+            if (_playerDamageable == null || Time.time < _nextContactTime) return;
+
+            Vector3 offset = Player.position - transform.position;
+            offset.y = 0f;
+            if (offset.sqrMagnitude > _contactRange * _contactRange) return;
+
+            _nextContactTime = Time.time + _contactInterval;
+            _playerDamageable.TakeDamage(_contactDamage);
+        }
+
+        // 접촉할 때마다 조회하지 않도록 플레이어가 정해질 때 한 번만 찾아 둔다
+        private void CachePlayerDamageable()
+        {
+            _playerDamageable = null;
+
+            if (Player != null)
+            {
+                Player.TryGetComponent(out _playerDamageable);
+            }
         }
 
         private Vector3 DirectionToPlayer()

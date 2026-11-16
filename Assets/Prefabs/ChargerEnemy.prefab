@@ -173,5 +173,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 312122b95b6927b40bd2428922ce69c7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Core.Health
-  _maxHealth: 30
-  _currentHealth: 30
+  _maxHealth: 1
+  _currentHealth: 1

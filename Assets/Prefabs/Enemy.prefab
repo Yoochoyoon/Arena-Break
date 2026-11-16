@@ -151,7 +151,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 312122b95b6927b40bd2428922ce69c7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Core.Health
-  _maxHealth: 30
+  _maxHealth: 1
   _currentHealth: 0
 --- !u!114 &6588754867933849172
 MonoBehaviour:
@@ -166,8 +166,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Enemy.EnemyAI
   _player: {fileID: 0}
+  _destroyDelay: 1
   _chaseRange: 60
   _attackRange: 2
   _attackInterval: 2
   _attackDamage: 10
-  _destroyDelay: 1

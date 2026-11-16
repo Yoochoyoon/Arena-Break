@@ -819,11 +819,157 @@ AI가 "투사체 프리팹과 테스트 원거리 적을 만들까요?"라고 �
 **참고(AI)**: 프리팹 파일에는 `Rigidbody` 중력이 켜져 있고 콜라이더가 트리거가 아닌 것으로 저장되어 있음 — `EnemyProjectile.Awake`가 실행 시 중력 끔·트리거로 강제하는 설계라서 의도된 것이며 실제 플레이에서 확인 필요.
 **문제점**: 투사체에 컴포넌트를 추가하는 중 MCP 연결이 한 번 끊겨(컴포넌트는 붙지 않은 것을 읽어서 확인) 재시도해 성공. 콘솔에 MCP 쪽 경고(Transform 정수 역직렬화) 1건, 값 연결은 정상.
 
+#### 후속 프롬프트 (Player 최대 체력 500, MCP 직접 작업)
+```
+씬의 Player 에 ArenaBreak.Core.Health 컴포넌트를 붙여줘.
+최대 체력은 500.
+
+끝나면 컴포넌트를 다시 읽어서 값이 들어갔는지 보여줘.
+```
+**결과**: `Player`에는 이미 `Health` 컴포넌트가 있었음(최대 100). 하나 더 붙이면 `IDamageable`이 둘이 되어 데미지가 어느 쪽에 들어가는지 모호해지므로 새로 붙이지 않고 기존 컴포넌트의 `_maxHealth`를 500으로 바꿈. 다시 읽어 확인: `Health` 1개, `_maxHealth`=500, 직렬화된 `_currentHealth`=0(`Awake`가 실행 시 최대 체력으로 채움, 코드 미변경). 콘솔 에러·경고 0건. 씬은 저장하지 않음. 플레이 테스트 전(실제 체력 500으로 시작하는지는 사람이 확인).
+
 ---
 
 ## 3장
 
 ### 3-1. 게임 상태 머신
+
+#### 시도 1
+(앞 단계의 확인 입력: `확인 했고 다 잘됨.` — Player 최대 체력 500 작업에 대한 사용자 판정)
+```
+게임 상태 머신을 만들어줘.
+
+- 상태: Ready / Playing / GameOver / Cleared — enum + switch로 단순하게
+- Ready에서 시작해 잠깐 뒤 Playing으로 (대기 시간은 인스펙터에서 조절)
+- 플레이어 Health의 사망 이벤트를 구독해서 GameOver로
+- WaveSpawner의 전체 클리어 이벤트를 구독해서 Cleared로
+- GameOver / Cleared 에서: 커서 표시, Time.timeScale = 0
+- 그 상태에서 R키를 누르면 현재 씬을 다시 로드
+  (Time.timeScale을 1로 되돌리는 것을 잊지 말 것)
+- 상태가 바뀌면 C# 이벤트로 알릴 것 — HUD가 구독할 것이다
+- 구독한 이벤트는 OnDisable에서 반드시 구독 해제할 것
+- GameOver / Cleared 로 갈 때 플레이어 조작을 멈출 것.
+  timeScale = 0 은 Update를 멈추지 않아서, 안 끄면 죽은 뒤에도 총이 나간다
+  PlayerController 와 WeaponSystem 을 각각 [SerializeField] 로 받아 enabled 를 끌 것.
+  배열이나 리스트 하나로 묶지 마 — 타입이 넓어지면 인스펙터에서 엉뚱한 것도 들어간다
+- Esc로 게임을 종료할 것 (Application.Quit). 어느 상태에서든 눌리게
+- R키와 Esc는 InputSystem_Actions 에셋에 액션이 없다.
+  WeaponSystem의 재장전처럼 코드에서 InputAction을 만들어 쓸 것
+
+파일: Assets/Scripts/Core/GameManager.cs 하나만 생성.
+WaveSpawner와 PlayerController는 수정하지 마.
+씬은 건드리지 말고 세팅 절차만 알려줘.
+```
+**결과**: `Assets/Scripts/Core/GameManager.cs` 1개 생성(씬·다른 스크립트 미수정). 같은 파일에 `public enum GameState { Ready, Playing, GameOver, Cleared }`, 이벤트 `StateChanged(GameState)`, 읽기 전용 `CurrentState`. 인스펙터: `_readyDuration`(대기 시간, 기본 2초 — 값은 AI가 정함), `_playerHealth`, `_waveSpawner`, `_playerController`, `_weaponSystem`(조작 정지용 둘은 요청대로 각각 따로). 동작: `Start`에서 대기 코루틴 → Ready일 때만 Playing으로(그 사이 끝났으면 되돌리지 않음). `Health.Died`→GameOver, `AllWavesCleared`→Cleared(둘 다 이미 끝난 상태면 무시 — 먼저 일어난 쪽이 결과). 종료 상태 진입 시 `PlayerController`·`WeaponSystem`을 끄고, 커서 표시·잠금 해제, `timeScale=0`. R은 종료 상태에서만 `timeScale=1` 후 `SceneManager.LoadScene(활성 씬 buildIndex)`. Esc는 모든 상태에서 `Application.Quit()`. R/Esc는 코드에서 만든 `InputAction`(`performed` 콜백, `OnEnable` 구독·`OnDisable` 해제, `OnDestroy`에서 Dispose). 구독한 `Died`·`AllWavesCleared`도 `OnDisable`에서 해제. `OnDestroy`에서 `timeScale=1`(종료 상태에서 플레이를 멈춰도 다음 플레이로 새지 않게 — 요청에 없던 방어 코드). 컴파일 에러 0건(콘솔은 MCP WebSocket 경고만), `GameManager`·`GameState`·`StateChanged` 로드 확인. 빌드 설정에 `Arena.unity`가 인덱스 0으로 등록되어 있어 `LoadScene(buildIndex)`가 동작하는 조건은 충족. 씬의 `GameManager` 오브젝트에는 아직 이 컴포넌트가 붙어 있지 않음.
+**알아둘 점(AI)**: ① 에디터에서는 `Application.Quit()`이 아무 일도 하지 않음(빌드에서만 종료) — 에디터 정지 코드는 요청에 없어 넣지 않음. ② `AimController`·`DashController`는 요청한 정지 대상이 아니라 종료 후에도 조준·대시가 동작함(보고만 함). ③ 종료 상태에서도 살아 있는 적은 움직이지만 `timeScale=0`이라 사실상 멈춤. ④ 이 단계는 플레이 테스트 전(사람이 확인): Ready→Playing 전환, 사망/클리어 시 정지·커서, R 재시작, Esc 종료.
+**문제점**: (본인이 기록)
+**원인 분석**: (본인이 기록)
+
+#### 후속 프롬프트 (재시작 처리 코드 설명 요청)
+```
+방금 만든 GameManager.cs에서 재시작 처리 부분을 설명해줘.
+Time.timeScale을 언제 0으로 만들고 언제 1로 되돌리는지,
+그 순서가 왜 그래야 하는지 중심으로.
+```
+**결과**: 코드 수정 없이 설명만 제공 — `timeScale`을 0으로 만드는 곳(`EnterEndState`, 조작 컴포넌트 끄기·커서 변경 뒤, 이벤트 발행 전), 1로 되돌리는 곳(`OnRestartPerformed`는 `LoadScene` 앞, `OnDestroy`는 안전장치). `timeScale`은 전역 값이라 씬 로드로 초기화되지 않는다는 점, `LoadScene`은 프레임 끝에 실행되므로 같은 프레임 안 앞뒤 순서는 결과를 바꾸지 않는다는 점(AI의 솔직한 보충), Input System이 실제 시간으로 입력을 갱신하므로 `timeScale` 0에서도 R이 먹을 것이라는 점은 코드·일반 동작 근거이고 플레이로 확인하지 않았다는 점을 함께 밝힘.
+
+#### 후속 프롬프트 (씬의 GameManager에 컴포넌트 붙이기, MCP 직접 작업)
+```
+GameManager 컴포넌트를 씬의 GameManager 오브젝트에 붙여줘.
+(2장에 WaveSpawner를 붙인 그 오브젝트다)
+
+- 플레이어 Health 참조 칸에 씬의 Player 를 연결
+- WaveSpawner 참조 칸에 같은 오브젝트의 WaveSpawner 를 연결
+- PlayerController 칸과 WeaponSystem 칸에도 씬의 Player 를 연결
+
+끝나면 컴포넌트를 다시 읽어서 네 칸에 실제로 값이 들어갔는지 보여줘.
+None 인 칸이 하나라도 있으면 알려줘.
+```
+**결과**: 씬의 `GameManager` 오브젝트(기존 `WaveSpawner` 있음)에 `ArenaBreak.Core.GameManager` 추가(오브젝트 생성·삭제 없음, 컴포넌트 1개). 다시 읽어 확인: `_playerHealth`=`Player`의 Health, `_waveSpawner`=`GameManager`의 WaveSpawner, `_playerController`=`Player`의 PlayerController, `_weaponSystem`=`Player`의 WeaponSystem — 4칸 모두 값 있음, None 없음. `_readyDuration`은 기본 2초. 콘솔은 MCP WebSocket 경고만. 씬은 저장하지 않음(변경 표시만 됨). 플레이 테스트 전.
+
+#### 후속 프롬프트 (웨이브 4·5 추가, MCP 직접 작업)
+```
+Assets/Data 에 WaveData 에셋을 2개 더 만들어줘.
+
+- Wave_4 : 적 12마리, 스폰 간격 0.5초
+- Wave_5 : 적 16마리, 스폰 간격 0.4초
+- 둘 다 적 프리팹은 Assets/Prefabs/Enemy.prefab
+
+만든 뒤 GameManager 오브젝트의 WaveSpawner 웨이브 리스트 끝에 순서대로 추가해줘.
+끝나면 리스트를 다시 읽어서 5개가 들어갔는지 보여줘.
+```
+**결과**: `Assets/Data/Wave_4.asset`(근접 적 ×12, 간격 0.5초), `Wave_5.asset`(근접 적 ×16, 간격 0.4초) 생성 — 프롬프트는 단일 프리팹 구조 기준이었지만 현재 `WaveData`는 "적 목록" 구조(2-6에서 변경)라서 목록 항목 1개(`Enemy.prefab` + 수량)로 입력함. `GameManager` 오브젝트의 `WaveSpawner` 웨이브 리스트 끝에 순서대로 추가(코드 변경 없음). 리스트를 다시 읽어 확인: 3개→5개, 1 Wave_1(근접×3@1), 2 Wave_2(돌진×5@0.8), 3 Wave_3(돌진×3+원거리×5@0.6), 4 Wave_4(근접×12@0.5), 5 Wave_5(근접×16@0.4), None 없음. 콘솔은 MCP WebSocket 경고만. 씬 저장 안 함(변경 표시만). 플레이 테스트 전(사람이 확인).
+
+#### 후속 프롬프트 (로그가 안 뜸 → 상태 전환 임시 로그)
+AI가 스크립트에 `Debug.Log`가 하나도 없다는 것(2-5에서 모두 삭제)을 확인해 알리고 어떤 로그를 원하는지 물음.
+```
+로그가 안떠
+```
+```
+상태 전환 로그 임시로 넣어줘
+```
+**결과**: `GameManager.ChangeState`에 `Debug.Log($"[GameState] {이전} -> {다음}")` 1줄 추가(`TEMP` 주석 — CLAUDE.md 규칙에 따라 커밋 전에 지울 것). 처음 Ready 상태는 "전환"이 아니라 시작값이라 로그에 안 찍히고 Ready→Playing부터 찍힘. 컴파일 에러·경고 0건. 플레이 테스트는 사람이 해야 함.
+
+#### 후속 프롬프트 (웨이브 구성 재편성)
+```
+그리고 1-기본적 2-돌진적 3-원거리적 4-돌진,원거리 5-돌진,원거리,기본 이렇게 웨이브 흘러가게 바꿔줘. 적 수 는 현재를 유지해줘.
+```
+**결과**: 웨이브 에셋만 수정(코드·씬 변경 없음), 총 적 수와 간격은 그대로. `Wave_1` 근접×3@1초(변경 없음), `Wave_2` 돌진×5@0.8초(변경 없음), `Wave_3` 원거리×8@0.6초(이전: 돌진 3+원거리 5), `Wave_4` 돌진×6+원거리×6=12@0.5초(이전: 근접 12), `Wave_5` 돌진×5+원거리×5+근접×6=16@0.4초(이전: 근접 16). 혼합 웨이브의 종류별 수량 배분은 AI가 정함(총합만 유지). 웨이브 리스트를 다시 읽어 확인(5개, None 없음), 콘솔 에러·경고 0건. 플레이 테스트 전(사람이 확인).
+
+#### 후속 프롬프트 (로그가 안 뜸 재문의 + 플레이 중 바닥 아래로 추락, 사망 안 함)
+```
+콘솔에 로그 안뜨는데?
+```
+**결과**: 플레이 중 MCP로 콘솔을 읽어 `[GameState] Ready -> Playing`이 찍혀 있음을 확인하고, 사용자 Console 창의 필터(Log 아이콘·검색창·Clear on Play)를 점검하라고 안내. 코드는 수정하지 않음.
+```
+(스크린샷: 하늘색 배경 속에 작게 보이는 아레나 바닥과 빨간 점 3개)
+구석에 몰리더니 떨어졌어. 그리고 플레이어가 죽지 않아. 한 번 HP부분 확인해봐
+```
+**확인한 사실(AI, 플레이 중 조회)**: 플레이어 위치 `(16.15, -244.25, -14.34)`, `isGrounded`=false — 바닥 아래로 계속 추락 중. 플레이어 `Health` 490/500, `IsDead`=false — 데미지 처리는 동작함(10 데미지 1회 받음). 죽지 않는 이유: 추락은 데미지가 아니고 낙사 처리(킬 플레인)가 없으며, 돌진 적은 플레이어에게 데미지를 주는 코드가 없음. 아레나 벽 4개는 바닥(±20) 가장자리를 둘러싸고 있어 틈은 확인되지 않음. 바닥은 두께 0인 `MeshCollider`(Plane). **추락 원인은 확정하지 못함** — 추정: 구석에서 적 캡슐과 벽 사이에 끼어 `CharacterController` 충돌 보정으로 얇은 바닥을 뚫었을 가능성(검증 안 됨).
+**예상 밖 발견(AI)**: 세 적 프리팹(`Enemy`·`ChargerEnemy`·`RangedEnemy`)의 `_maxHealth`가 30에서 1로 바뀌어 있음(`git diff`, 파일 수정 시각 05:32~05:38). AI가 바꾼 것이 아님 — 테스트용으로 사용자가 바꾼 것으로 추정(미확인). 수정하지 않고 보고만 함. (`_destroyDelay` 줄 순서 변경은 `EnemyBase` 리팩터링으로 필드가 기반 클래스로 옮겨진 것, 값 동일.)
+**미해결**: 수정 방향(낙사 처리 / 바닥 콜라이더 보강 / 돌진 적 데미지)은 사용자 선택 대기. 코드·씬·프리팹 변경 없음.
+
+#### 후속 프롬프트 (낙사 처리 + 바닥 보강 + 접촉 데미지)
+```
+1, 2번 다 해줘. 그리고 적들한테 닿아도 플레이어에게 영향이 없는데 이거 수정해줘. 원거리 적의 경우 총알에 맞아야해
+```
+**결과(스크립트 2개 + 씬 컴포넌트 1개)**: ① `GameManager` — `_fallDeathHeight`(기본 -10, 값은 AI가 정함) 추가, `Update`에서 종료 전이고 플레이어 y가 그보다 낮으면 `Health.TakeDamage(MaxHealth)`로 죽임(`Died` 하나로 GameOver·HUD가 같은 경로를 타도록 체력으로 처리, Transform은 `Awake`에서 캐싱). ② 씬의 `Floor`(두께 0인 Plane `MeshCollider`)에 `BoxCollider` 추가 — 월드 범위 (-20,-1,-20)..(20,0,20), 윗면은 기존 바닥과 같은 y=0, `MeshCollider`는 그대로 둠. ③ `ChargerAI` — 접촉 데미지 추가: `_contactDamage`(10), `_contactRange`(1.5m, 수평 거리), `_contactInterval`(1초, 붙어 있는 동안 매 프레임 데미지 방지) 모두 인스펙터 노출(값은 AI가 정함), 모든 상태에서 판정, 플레이어 `IDamageable`은 `EnemyAI`와 같은 방식으로 한 번 캐싱, 재사용 시 타이머 초기화. 새 필드는 프리팹에 값이 없어 기본값이 적용됨(프리팹 파일은 수정하지 않음). 컴파일 에러·경고 0건(MCP WebSocket 경고만).
+**범위 판단(AI)**: "적들한테 닿아도 영향이 없다"는 근접 적은 이미 사거리 2에서 10 데미지/2초 공격을 하므로 돌진 적에만 접촉 데미지를 추가함. 원거리 적은 요청대로 접촉 데미지 없이 투사체만으로 데미지를 주는 현재 구조 유지(코드 변경 없음).
+**미확인(사람이 확인 필요)**: 구석에서 다시 추락하는지(원인 미확정이라 바닥 보강이 근본 해결인지 보장 못 함), 낙사 시 GameOver 전환, 돌진 적 접촉 데미지 체감, 원거리 투사체가 `CharacterController`를 실제로 맞추는지. 씬 저장 안 함.
+**사람의 플레이 테스트 판정(후속 입력 전문)**: `테스트 전부 통과 다음 갈게` → 사용자가 위 미확인 항목들을 직접 플레이해 전부 통과했다고 판정함(AI는 직접 확인하지 못했고 사용자의 판정에 따름). 세부 내용은 따로 알려 주지 않아 기록하지 않음.
+
+#### 후속 프롬프트 (3-1 검증 체크리스트를 AI도 검증해 달라는 요청)
+```
+□ GameManager 인스펙터에 None 인 칸이 하나도 없다 (네 칸)
+□ Play 하면 잠깐 뒤 웨이브 1이 시작된다
+□ 적에게 계속 맞으면 죽고, 커서가 나타나며 화면이 멈춘다
+□ 죽은 뒤 좌클릭해도 총알이 나가지 않는다
+□ 죽은 뒤 마우스를 움직여도 시점이 돌지 않는다
+□ 그 상태에서 R을 누르면 게임이 처음부터 다시 시작된다
+□ 재시작 후 화면이 멈춰 있지 않다 (timeScale 복구 확인)
+□ 재시작 후 커서가 다시 잠긴다
+□ 웨이브가 5개까지 진행된다 (마지막 웨이브 번호를 로그로 확인)
+□ 콘솔에 에러가 없다
+
+너도 이 부분 검증해줘
+```
+**AI 검증 결과(직접 확인 가능한 것만)**: ① ✔ 인스펙터 4칸(`_playerHealth`·`_waveSpawner`·`_playerController`·`_weaponSystem`) 모두 연결, None 없음. ⑩ ✔ 콘솔에 에러·경고 없음(로그만 3건). ③ 일부 ✔ — 콘솔의 스택 트레이스에서 `Playing -> GameOver`가 두 번, 각각 `GameManager.Update`의 낙사 처리와 `EnemyAI.Attack`의 데미지로 `Health.TakeDamage`→`Died`→`HandlePlayerDied` 경로로 발생한 것을 확인(커서·정지 자체는 못 봄). ④⑤ 코드 확인만 — 종료 시 `WeaponSystem`·`PlayerController`가 꺼지고 `PlayerController.OnDisable`이 `Player` 액션 맵 전체(Look 포함)를 끔. ⑥⑦⑧ 코드 확인만 — `OnRestartPerformed`가 종료 상태에서만 `timeScale=1` 후 `LoadScene`, `PlayerController.OnEnable`이 커서를 다시 잠금.
+**확인하지 못한 것**: ② 웨이브 1 시작, ⑨ 5웨이브 진행과 번호 로그 — 코드에 웨이브 번호를 찍는 로그가 없음(`WaveStarted` 이벤트만 있음, 2-5에서 로그 삭제). 실행 중인 플레이 세션에서 Unity 창이 비활성이라 프레임이 멈춰(`frameCount` 35890 고정, `focused=False`) 시간이 흐르는 동작은 AI가 직접 확인할 수 없음. 대신 실행 중 세션의 `WaveSpawner` 이벤트(`WaveStarted`·`WaveCleared`·`AllWavesCleared`)에 `[AI-TEMP]` 로그를 메모리상으로만 연결함(프로젝트 파일 변경 없음, 스크립트 재컴파일·씬 재로드 시 사라짐). 사용자가 Unity 창을 앞에 두고 플레이하면 콘솔에 웨이브 번호가 찍힘.
+**한계(AI)**: 이전 플레이의 로그가 중간에 빠져 있어(두 번째 판의 `Ready -> Playing`이 없음) 하나의 연속된 실행으로 해석하지 않음. 이 체크리스트는 결국 사람의 플레이 판정이 필요함.
+
+#### 후속 프롬프트 (웨이브 임시 로그)
+```
+웨이브 로그 임시로 넣어줘
+```
+**결과**: `WaveSpawner.RunWaves`에 임시 `Debug.Log` 3줄 추가(`TEMP` 주석 — 커밋 전에 지울 것): 웨이브 시작 `[Wave] TEMP 시작 n/전체`, 웨이브 클리어 `[Wave] TEMP 클리어 n/전체`, `[Wave] TEMP 전체 클리어`. 로그는 웨이브 루프에서만 찍히고 `Update`에는 없음. 공개 이벤트·로직 변경 없음. 컴파일 에러·경고 0건. 요청 시점에 플레이 중이 아니라 바로 컴파일됨(앞서 AI가 메모리에 연결했던 `[AI-TEMP]` 로그는 재컴파일로 사라짐). 플레이 테스트는 사람이 해야 함. 현재 임시 로그: `GameManager`의 `[GameState]` 1줄 + `WaveSpawner` 3줄.
+
+#### 후속 프롬프트 (3-1 테스트 통과, 임시 로그 삭제)
+```
+테스트 통과, 로그 지워줘
+```
+**사람의 플레이 테스트 판정**: 사용자가 3-1 검증 체크리스트(웨이브 5개 진행 포함)를 직접 플레이해 통과했다고 판정함(AI는 직접 확인하지 못했고 사용자의 판정에 따름). 세부 내용은 따로 알려 주지 않아 기록하지 않음.
+**결과**: 임시 로그 4줄 삭제 — `WaveSpawner.cs` 3줄(웨이브 시작·클리어·전체 클리어), `GameManager.cs` 1줄(`[GameState]`)과 그 `TEMP` 주석. 스크립트 폴더에서 `Debug.Log`/`LogFormat`·`TEMP`가 더 이상 검색되지 않음(`LogError`만 남음). 컴파일 에러·경고 0건. 플레이 테스트는 하지 않음.
+**CLAUDE.md 규칙 초과 기록**: 작업 규칙 1(한 번에 파일 1~2개 수정)은 파일 2개라 이내.
 
 ### 3-2. HUD
 
