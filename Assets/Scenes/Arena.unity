@@ -1185,6 +1185,19 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1993861842}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!134 &1643764284
+PhysicsMaterial:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: ' (Instance) (Instance) (Instance)'
+  serializedVersion: 2
+  m_DynamicFriction: 0.6
+  m_StaticFriction: 0.6
+  m_Bounciness: 0
+  m_FrictionCombine: 0
+  m_BounceCombine: 0
 --- !u!1 &1689303473
 GameObject:
   m_ObjectHideFlags: 0
@@ -1196,6 +1209,9 @@ GameObject:
   - component: {fileID: 1689303476}
   - component: {fileID: 1689303475}
   - component: {fileID: 1689303474}
+  - component: {fileID: 1689303477}
+  - component: {fileID: 1689303478}
+  - component: {fileID: 1689303479}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1233,7 +1249,7 @@ CharacterController:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1689303473}
-  m_Material: {fileID: 1850783897}
+  m_Material: {fileID: 1643764284}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -1267,6 +1283,63 @@ Transform:
   - {fileID: 330585546}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1689303477
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1689303473}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 37d2555c42d765a44bc7d190d4d6bdf8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Player.WeaponSystem
+  _inputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  _cameraTransform: {fileID: 330585546}
+  _hitMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  _fireInterval: 0.15
+  _range: 50
+  _magazineSize: 12
+  _reloadDuration: 1.5
+  _hitMarkerColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  _hitMarkerSize: 0.2
+  _hitMarkerLifetime: 0.5
+--- !u!114 &1689303478
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1689303473}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9919f3d82773f44290ca4f9ef983a5a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Player.AimController
+  _inputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  _camera: {fileID: 330585545}
+  _aimFieldOfView: 40
+  _aimSensitivityMultiplier: 0.5
+  _aimMoveSpeedMultiplier: 0.5
+  _fovTransitionSpeed: 12
+--- !u!114 &1689303479
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1689303473}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f0da3f53b757db4ebe4778f73a2da59, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Player.DashController
+  _dashDistance: 4
+  _dashDuration: 0.2
+  _cooldown: 2
 --- !u!1 &1829278887
 GameObject:
   m_ObjectHideFlags: 0
@@ -1298,19 +1371,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1993861842}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!134 &1850783897
-PhysicsMaterial:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: 
-  serializedVersion: 2
-  m_DynamicFriction: 0.6
-  m_StaticFriction: 0.6
-  m_Bounciness: 0
-  m_FrictionCombine: 0
-  m_BounceCombine: 0
 --- !u!1 &1993861838
 GameObject:
   m_ObjectHideFlags: 0
