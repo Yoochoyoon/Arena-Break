@@ -1598,6 +1598,25 @@ MCP 다시 연결했어, 이어서 해줘
 
 ### 3-5. 빌드
 
+#### 시도 1 (Windows Standalone 빌드 설정 점검)
+```
+Windows Standalone 빌드 설정을 점검해줘.
+(Unity 6.3은 File > Build Settings가 아니라 File > Build Profiles다)
+
+포함 씬, 회사명/제품명, 커서 잠금 동작을 확인하고
+빌드 후 흔히 나는 문제(에디터에서만 되는 코드)가 있는지 스크립트를 훑어봐.
+
+화면 설정은 이미 창 모드(1280x720)로 맞춰져 있다. 바꾸지 말고 그대로인지만 확인해줘.
+```
+**결과(점검만, 설정·씬·코드 수정 없음)**: ① 빌드 대상 `StandaloneWindows64`, 활성 빌드 프로파일 없음(클래식 플랫폼 설정 사용). 포함 씬은 `Assets/Scenes/Arena.unity` 1개(활성) → `SceneManager.LoadScene(buildIndex)`가 인덱스 0으로 동작. ② 회사명 `DefaultCompany`, 제품명 `arena-break-starter`, 버전 0.1.0 — 기본값 그대로(창 제목·빌드 파일명·저장 경로에 쓰임). ③ 화면 설정은 요청대로 그대로임을 확인: 1280×720, `Windowed`, 크기 조절 가능, 전체화면 전환 허용, 네이티브 해상도 사용 안 함, 백그라운드 실행 안 함(바꾸지 않음). ④ 커서 잠금: `PlayerController.OnEnable`이 `_lockCursor`(기본 true)일 때 잠그고 `OnDisable`이 푸는 구조, 게임 종료 상태(`GameManager`)에서 잠금 해제·커서 표시, 플레이어 설정에 별도 커서 잠금 옵션은 없음 — 빌드에서 Alt+Tab 후 복귀 시 재잠금은 코드로 확인 불가(빌드 실행 필요). ⑤ 에디터 전용 코드 스캔: `UnityEditor`·`#if`·`AssetDatabase`·`Shader.Find`·`Resources.Load`·파일 입출력·`PlayerPrefs` 사용 0건. `OnValidate` 4곳(`Health`·`CrosshairController`·`HitMarkerController`·`VignetteController`)은 에디터에서만 호출되는 콜백이라 빌드에서는 동작하지 않지만 무해. `Application.Quit()`은 빌드에서만 실제 종료(에디터는 아무 일 없음). ⑥ 그 밖의 설정: 입력 처리 신규 Input System만(`activeInputHandler` 1, 규약과 일치), 스크립팅 `Mono2x`·`.NET Standard 2.0`, 매니지드 스트리핑 꺼짐(안전), 렌더 파이프라인 에셋 `PC_RPAsset`(Mobile·PC 두 품질 모두 지정), 색 공간 Linear, 스크립팅 심볼 없음. **발견한 위험**: (1) **씬이 저장되지 않음** — 에디터의 `Arena` 씬이 수정된 상태(`isDirty`)이고 디스크의 `Arena.unity`에는 조준점·비네팅·히트 마커·총구 오브젝트가 없으며 `GameManager`의 새 칸(`_aimController`·`_dashController`)도 없음 → 이대로 빌드하면 그 요소들이 빠지고 `GameManager`가 시작할 때 에러를 내고 꺼져 게임 상태 전환이 동작하지 않음. 빌드 전에 씬을 저장해야 함(AI는 저장하지 않음). (2) 그래픽스 API 자동 = Direct3D12가 먼저, 에디터는 DX11로 실행 중 → 에디터에서 테스트한 경로와 빌드의 경로가 다름. (3) 두 품질 수준 모두 `vSyncCount` 0 → 프레임 제한 없음. (4) 회사명·제품명 기본값. (5) 한글 UI 문구가 빌드에서 깨지지 않는지는 실행해 봐야 앎(레거시 `Text`의 내장 폰트).
+
+#### 후속 입력 (씬 저장 확인)
+```
+저장했어
+```
+**AI 확인**: 사용자가 직접 씬을 저장함. 확인 결과 `Arena` 씬 `isDirty`=False, `GameManager`의 `_aimController`·`_dashController` 연결 유지, 디스크의 `Arena.unity`에 `HUD`·`Vignette`·`Crosshair`·`HitMarker`·`Muzzle`·`ShellEjectPoint`·`MuzzleFlash`와 `GameManager`의 새 칸이 모두 들어 있음(앞서 발견한 위험 (1) 해소). 남은 결정 대기: 회사명·제품명 변경 여부, 그래픽스 API·vSync 처리.
+
+
 ---
 
 ## 자체 점검
