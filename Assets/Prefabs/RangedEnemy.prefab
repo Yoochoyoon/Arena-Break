@@ -152,7 +152,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 312122b95b6927b40bd2428922ce69c7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Core.Health
-  _maxHealth: 1
+  _maxHealth: 30
   _currentHealth: 0
 --- !u!114 &6924988242225540046
 MonoBehaviour:
@@ -168,11 +168,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Enemy.RangedEnemyAI
   _player: {fileID: 0}
   _destroyDelay: 1
+  _repathInterval: 0.25
   _keepDistance: 6
   _attackRange: 12
   _fireInterval: 2
   _projectilePrefab: {fileID: 3316404974451114865, guid: a2d3fc6907109234a9eecdac135ecc9c, type: 3}
   _muzzle: {fileID: 0}
+  _projectilePoolSize: 4
 --- !u!114 &7739785262234697459
 MonoBehaviour:
   m_ObjectHideFlags: 0
