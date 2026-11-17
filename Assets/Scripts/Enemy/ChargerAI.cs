@@ -96,7 +96,7 @@ namespace ArenaBreak.Enemy
 
         private void UpdateChase()
         {
-            Agent.SetDestination(Player.position);
+            SetDestinationThrottled(Player.position);
 
             bool cooledDown = Time.time >= _nextChargeTime;
             float sqrDistance = (Player.position - transform.position).sqrMagnitude;
@@ -141,6 +141,9 @@ namespace ArenaBreak.Enemy
             _state = State.Chase;
             Agent.isStopped = false;
             Agent.speed = _chaseSpeed;
+
+            // 돌진 목적지가 남아 있어서 간격을 기다리면 그쪽으로 계속 간다
+            ResetRepathTimer();
         }
 
         private void StartWindup()

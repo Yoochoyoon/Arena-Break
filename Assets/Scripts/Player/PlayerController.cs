@@ -43,6 +43,10 @@ namespace ArenaBreak.Player
         private float _pitch;
         private float _verticalVelocity;
 
+        // 카메라 회전은 이 컴포넌트만 쓴다. 반동은 마우스로 정한 pitch와 따로 들고 있다가 마지막에만 더해서,
+        // 반동이 돌아오는 중에도 마우스 조작과 충돌하지 않고 반동이 사라지면 원래 조준 방향으로 돌아온다
+        public float RecoilPitch { get; set; }
+
         private void Awake()
         {
             _controller = GetComponent<CharacterController>();
@@ -114,7 +118,8 @@ namespace ArenaBreak.Player
             transform.Rotate(0f, delta.x * _lookSensitivity, 0f);
 
             _pitch = Mathf.Clamp(_pitch - delta.y * _lookSensitivity, _minPitch, _maxPitch);
-            _cameraTransform.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+            float visiblePitch = Mathf.Clamp(_pitch - RecoilPitch, _minPitch, _maxPitch);
+            _cameraTransform.localRotation = Quaternion.Euler(visiblePitch, 0f, 0f);
         }
 
         private void HandleMovement()

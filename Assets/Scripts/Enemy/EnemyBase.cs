@@ -17,7 +17,12 @@ namespace ArenaBreak.Enemy
         [Header("Death")]
         [SerializeField, Min(0f)] private float _destroyDelay = 1f;
 
+        [Header("Pathing")]
+        [Tooltip("움직이는 목표를 향한 경로를 다시 계산하는 간격(초). 매 프레임 계산하면 적이 많을 때 비용이 크다")]
+        [SerializeField, Min(0.05f)] private float _repathInterval = 0.25f;
+
         private Health _health;
+        private float _nextRepathTime;
         private Action<EnemyBase> _releaseHandler;
         private WaitForSeconds _releaseWait;
 
@@ -57,6 +62,21 @@ namespace ArenaBreak.Enemy
             _releaseHandler = releaseHandler;
         }
 
+        // 플레이어처럼 계속 움직이는 목표에 쓴다. 정해진 간격으로만 경로를 다시 계산한다
+        protected void SetDestinationThrottled(Vector3 destination)
+        {
+            if (Time.time < _nextRepathTime) return;
+
+            _nextRepathTime = Time.time + _repathInterval;
+            Agent.SetDestination(destination);
+        }
+
+        // 멈췄다가 다시 움직이기 시작할 때는 간격을 기다리지 않고 바로 새 경로를 잡게 한다
+        protected void ResetRepathTimer()
+        {
+            _nextRepathTime = 0f;
+        }
+
         protected virtual void OnPlayerChanged() { }
 
         protected virtual void OnDied() { }
@@ -66,6 +86,7 @@ namespace ArenaBreak.Enemy
         protected virtual void ResetForReuse()
         {
             IsDead = false;
+            _nextRepathTime = 0f;
             _health.Restore();
 
             // 사망할 때 꺼 둔 에이전트를 다시 켜야 새 위치에서 NavMesh에 자리를 잡는다

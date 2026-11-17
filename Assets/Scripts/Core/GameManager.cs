@@ -34,6 +34,8 @@ namespace ArenaBreak.Core
         [Header("Stop On End")]
         [SerializeField] private PlayerController _playerController;
         [SerializeField] private WeaponSystem _weaponSystem;
+        [SerializeField] private AimController _aimController;
+        [SerializeField] private DashController _dashController;
 
         [Header("Fall")]
         [Tooltip("플레이어가 이 높이보다 아래로 내려가면 사망으로 처리한다. 바닥(y=0)보다 충분히 낮게 둔다")]
@@ -50,9 +52,10 @@ namespace ArenaBreak.Core
 
         private void Awake()
         {
-            if (_playerHealth == null || _waveSpawner == null || _playerController == null || _weaponSystem == null)
+            if (_playerHealth == null || _waveSpawner == null || _playerController == null || _weaponSystem == null
+                || _aimController == null || _dashController == null)
             {
-                Debug.LogError("GameManager: Player Health, WaveSpawner, PlayerController, WeaponSystem을 모두 할당해야 합니다.", this);
+                Debug.LogError("GameManager: Player Health, WaveSpawner, PlayerController, WeaponSystem, AimController, DashController를 모두 할당해야 합니다.", this);
                 enabled = false;
                 return;
             }
@@ -162,6 +165,8 @@ namespace ArenaBreak.Core
         {
             _playerController.enabled = false;
             _weaponSystem.enabled = false;
+            _aimController.enabled = false;
+            _dashController.enabled = false;
 
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;

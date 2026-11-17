@@ -2181,6 +2181,8 @@ GameObject:
   - component: {fileID: 1689303481}
   - component: {fileID: 1689303480}
   - component: {fileID: 1689303482}
+  - component: {fileID: 1689303483}
+  - component: {fileID: 1689303484}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -2352,6 +2354,38 @@ MonoBehaviour:
   _cameraTransform: {fileID: 330585546}
   _duration: 2
   _intensity: 0.05
+--- !u!114 &1689303483
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1689303473}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6a38460d0c99ff74e857d8932d711677, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Player.HitParticleSpawner
+  _weaponSystem: {fileID: 1689303477}
+  _particlePrefab: {fileID: 3456570577263604579, guid: e2b245337fbbba94e8822d08d1c0b28d, type: 3}
+--- !u!114 &1689303484
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1689303473}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7d7098362c24f24fb96ad70a92555a0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Player.BulletTracer
+  _weaponSystem: {fileID: 1689303477}
+  _cameraTransform: {fileID: 330585546}
+  _ballPrefab: {fileID: 9193737965942021092, guid: ceba82cb5ec75cc478f1229ed755a5be, type: 3}
+  _muzzleLocalOffset: {x: 0.3, y: -0.25, z: 0.5}
+  _ballSpeed: 80
+  _maxPoolSize: 32
 --- !u!1 &1763360054
 GameObject:
   m_ObjectHideFlags: 0

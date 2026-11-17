@@ -13,6 +13,9 @@ namespace ArenaBreak.Player
         private const string AimBinding = "<Mouse>/rightButton";
         private const string ScaleProcessorFormat = "ScaleVector2(x={0},y={0})";
 
+        // 목표 FOV에 이 값(도)보다 가까워지면 목표로 맞추고 전환을 끝낸 것으로 본다
+        private const float FovSettleThreshold = 0.01f;
+
         [Header("Input")]
         [SerializeField] private InputActionAsset _inputActions;
 
@@ -33,6 +36,9 @@ namespace ArenaBreak.Player
         private bool _isAiming;
 
         public bool IsAiming => _isAiming;
+
+        // 조준점 UI가 IsAiming을 매 프레임 읽지 않고 바뀔 때만 알 수 있게 한다
+        public event System.Action<bool> AimStateChanged;
 
         private void Awake()
         {
@@ -112,15 +118,28 @@ namespace ArenaBreak.Player
 
             _lookScaler.SetScaled(aiming);
             _moveScaler.SetScaled(aiming);
+
+            AimStateChanged?.Invoke(aiming);
         }
 
         private void UpdateFieldOfView()
         {
             float target = _isAiming ? _aimFieldOfView : _defaultFieldOfView;
+            float current = _camera.fieldOfView;
+            float difference = target - current;
+
+            // 목표에 닿은 뒤에는 카메라 값을 매 프레임 다시 쓰지 않는다(쓸 때마다 투영 행렬을 다시 계산한다)
+            if (difference == 0f) return;
+
+            if (Mathf.Abs(difference) < FovSettleThreshold)
+            {
+                _camera.fieldOfView = target;
+                return;
+            }
 
             // 지수 보간은 프레임레이트가 달라도 같은 속도로 따라간다
             float blend = 1f - Mathf.Exp(-_fovTransitionSpeed * Time.deltaTime);
-            _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, target, blend);
+            _camera.fieldOfView = Mathf.Lerp(current, target, blend);
         }
 
         // 액션의 바인딩마다 ScaleVector2 프로세서를 덧씌우거나 걷어낸다.

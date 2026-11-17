@@ -1147,10 +1147,454 @@ AI가 "Player에 붙이고 연결할까요?"라고 묻고 사용자가 답함.
 
 <!-- 아래 표를 채울 것. 틀린 지적이 최소 1개는 있어야 한다 -->
 
+#### 프롬프트
+```
+지금까지 작성된 Assets/Scripts 전체를 리뷰해줘.
+
+다음 관점으로 문제를 찾아 심각도 순으로 정리:
+- Update()에서의 불필요한 연산 / GetComponent 호출
+- null 참조 가능 지점
+- 이벤트 구독 해제 누락 (메모리 누수)
+- 책임이 뒤섞인 클래스
+- CLAUDE.md 규약 위반
+
+각 항목마다 파일:줄 번호와 수정 방향을 제시하되, 아직 고치지는 마.
+```
+**결과(코드 수정 없음, 정적 리뷰 — 실행·프로파일링 없이 스크립트 19개를 읽고 판단)**: AI가 낸 지적 — **높음** ① 에이전트가 매 프레임 `SetDestination` 호출(`EnemyAI.cs:102`, `ChargerAI.cs:99`, `RangedEnemyAI.cs:70·76`). **중간** ② `RangedEnemyAI.cs:28`이 `Awake`에서 `enabled=false`로 끄면 기반 클래스 `OnEnable`(`EnemyBase.cs:35`)이 불리지 않아 `Died` 구독이 안 됨(투사체 프리팹 누락 시 죽은 적이 풀로 반환되지 않음) ③ 발사마다 생성·파괴 반복 3종(`WeaponSystem.cs:174-184` 디버그 히트 마커, `HitParticleSpawner.cs:34`, `RangedEnemyAI.cs:105`+`EnemyProjectile.cs:36,53`) — 풀링 대상 표시만 있고 미적용 ④ 책임 혼재: `GameManager`(상태+입력+낙사+종료 연출+씬 재시작), `WaveSpawner`(웨이브+풀+킬 집계), `WeaponSystem`(입력·발사·탄약·재장전·디버그 마커) ⑤ `AimController.cs:107-170`이 공유 `InputActionAsset`의 바인딩 override로 `PlayerController` 감도·속도를 우회 제어 ⑥ 준비 타이머 이중화(`GameManager.cs:27` 2초 vs `WaveSpawner.cs:14` 3초). **낮음** ⑦ `AimController.cs:117-124` 수렴 후에도 매 프레임 FOV 쓰기 ⑧ `DamageDealer.cs:12,34-40` 캐시 무제한 증가·파괴된 키·Unity null 미반영, 첫 조회 때 `GetComponentInParent`가 `Update` 호출 사슬 안에서 실행 ⑨ `WaveSpawner.cs:71-74` `OnDisable`에서 푼 구독을 `OnEnable`에서 다시 걸지 않음, 웨이브 0개면 시작 즉시 Cleared ⑩ `GameManager.cs:161-170` 종료 시 `AimController`·`DashController`는 안 끔(`timeScale` 0에 의존) ⑪ `CameraShake.cs:76`로 흔들린 카메라 위치에서 `WeaponSystem.cs:134`가 레이를 발사 ⑫ 네임스페이스 순환 의존(Core↔Enemy, Core↔Player). **문제 없음으로 확인**: `Update` 안의 `GetComponent`/`Find`·문자열 연결 없음, 구독/해제 쌍(`DamageDealer`·`HitParticleSpawner`·`CameraShake`·`HitFlash`·`HUDController`·`GameManager`(입력 액션 포함)·`EnemyBase`·`WaveSpawner`) 전부 짝이 맞음, `Debug.Log` 0건, public 필드 0건, 매직 넘버 노출 처리됨, 폴더·네임스페이스 규약 준수.
+**표 작성 안내**: 아래 표의 "내 판정"·"근거"는 본인이 직접 판단해 쓸 칸이라 비워 둠(틀린 지적이 최소 1개 필요 — 위 지적 중 코드와 대조해 직접 확인해 볼 것). AI가 놓친 항목이 있을 수도 있음.
+
+#### 프롬프트 (2차 리뷰 — 3-3 게임필·반동·조준점·비네팅·발사 이펙트·히트 마커 추가 뒤)
+**사람의 플레이 테스트 판정(후속 입력 전문, 프롬프트 앞부분)**: `테스트 통과.` → 사용자가 히트 마커를 직접 플레이해 통과했다고 판정함(AI는 실제 화면을 보지 못했고 사용자의 판정에 따름).
+```
+지금까지 작성된 Assets/Scripts 전체를 리뷰해줘.
+
+다음 관점으로 문제를 찾아 심각도 순으로 정리:
+- Update()에서의 불필요한 연산 / GetComponent 호출
+- null 참조 가능 지점
+- 이벤트 구독 해제 누락 (메모리 누수)
+- 책임이 뒤섞인 클래스
+- CLAUDE.md 규약 위반
+
+각 항목마다 파일:줄 번호와 수정 방향을 제시하되, 아직 고치지는 마.
+```
+**결과(코드 수정 없음, 정적 리뷰)**: 1차 리뷰와 같은 프롬프트(사용자가 다시 보냄). 1차 지적은 아직 하나도 고치지 않았음. **높음** ① `BulletTracer.cs:48·67` 플레이 정지 때 `MissingReferenceException`이 실제로 재현됨(콘솔에 남음) ② 에이전트 매 프레임 `SetDestination`(1차 ①, 미수정). **중간** ③ `RangedEnemyAI.cs:28`(1차 ②, 미수정) ④ 책임 혼재: `GameManager`·`WaveSpawner`·`WeaponSystem`(1차), `ShotEffects`(화염·연기·탄피 물리를 한 클래스에서) ⑤ 발사 때 생성·파괴: `WeaponSystem.cs:138·178-186` 디버그 노란 구체가 `BulletTracer`·파티클과 중복된 채 남음, `HitParticleSpawner.cs:34`·`RangedEnemyAI.cs:105` 풀링 미적용 ⑥ 탄피 레이어 `Ignore Raycast`가 씬에 저장된 `WeaponSystem._hitMask`(`WeaponSystem.cs:19`) 값에 숨어서 의존 ⑦ `RecoilController.cs:57-73`↔`PlayerController.cs:48·121` 실행 순서 의존 ⑧ 준비 타이머 이중화·`AimController` 입력 override(1차). **낮음** ⑨ `DamageDealer.cs:12·40·47` 캐시 무제한 증가, `GetComponentInParent`가 `Update` 호출 사슬 안, `target is Health`로 `IDamageable` 추상화가 새 ⑩ `CrosshairController`·`VignetteController` 보간 코드 중복 ⑪ `RecoilController.cs:57-73` 반동이 0이어도 매 프레임 계산 ⑫ `WaveSpawner.cs:71-74`·`GameManager.cs:161-170`·`CameraShake`↔`WeaponSystem` 레이 원점·FOV 매 프레임 쓰기·네임스페이스 순환(1차). **문제 없음으로 확인**: 새 컴포넌트의 구독/해제 쌍(`RecoilController`·`ShotEffects`·`BulletTracer`·`CrosshairController`·`VignetteController`·`HitMarkerController`·`DamageDealer`), `Debug.Log` 0건, public 필드 0건, `Update` 안 `GetComponent`/`Find` 없음. **규약 초과 기록**: 작업 규칙 1(한 번에 파일 1~2개)을 초과한 작업이 있었음 — 2-5 로그 삭제(3개, 사용자 승인), 3-3 반동(3개, 사용자에게 사유 보고).
+
 | # | AI의 지적 | 내 판정 | 근거 |
 | - | --------- | ------- | ---- |
 | 1 |           |         |      |
 | 2 |           |         |      |
+
+#### 추가 요청 — 총알이 날아가는 모습 (3-4 리뷰 뒤 사용자의 새 요청)
+```
+공이 날아가는 모습이 보였음 좋겠어.
+```
+**AI의 되묻기와 답**: "어떤 공이 날아가는 모습인가"(내 총알 연출만 / 내 총알을 실제 투사체로 / 적 원거리 공 개선) → 사용자 답: `내 총알(연출만)`(입력 전문 `내 총알(연출만)`). 판정(레이캐스트)·데미지는 그대로 두고 연출만 추가하는 안.
+**결과(스크립트 1개 + 프리팹 1개 + 머티리얼 1개, 씬 미수정)**: `Assets/Scripts/Player/BulletTracer.cs`(`ArenaBreak.Player`) — `WeaponSystem.ShotHit`을 구독(OnEnable/OnDisable)해 카메라 기준 로컬 오프셋(`_muzzleLocalOffset`, 기본 (0.3,-0.25,0.5), 값은 AI가 정함)의 총구 위치에서 명중 지점까지 공이 `_ballSpeed`(기본 80m/s)로 날아가게 함. 공은 `ObjectPool<Transform>`로 재사용(`_maxPoolSize` 32, 연사가 상한을 넘으면 그 발사의 연출만 건너뜀), `Update`는 활성 공 목록만 순회해 이동(`GetComponent`·`Find` 없음), 비활성화 시 날던 공을 모두 풀로 반환. `WeaponSystem`은 수정하지 않음(기존 `ShotHit` 이벤트 사용). 프리팹 `Assets/Prefabs/BulletBall.prefab`(Sphere 스케일 0.12, 콜라이더 없음 — 있으면 다음 발사가 공에 맞음, 그림자 끔)과 머티리얼 `Assets/Materials/BulletBall.mat`(URP Unlit, 주황빛 노랑 — 색·크기는 AI가 정함). 프리팹용으로 씬에 만든 임시 오브젝트는 삭제(남지 않음 확인). 컴파일 에러·경고 0건.
+**한계(AI)**: 레이가 아무것도 맞히지 못한 발사는 `ShotHit`가 발행되지 않아 공이 보이지 않음(아레나가 벽으로 둘러싸여 있어 위를 향해 쏠 때 정도). 공이 총구 오프셋에서 출발해 카메라 중앙을 지나는 레이의 명중 지점으로 향하므로 약간의 시차가 있음. `timeScale` 0(게임 종료)이 되면 공이 그 자리에 멈춤.
+**남은 작업**: 씬의 `Player`에 `BulletTracer`를 붙이고 세 칸(`Player`의 WeaponSystem, Main Camera, `BulletBall.prefab`)을 연결해야 동작함 — 규약상 확인을 요청함. 플레이 테스트는 사람이 해야 함.
+
+#### 후속 프롬프트 (Player에 BulletTracer 붙이고 연결, MCP 직접 작업)
+AI가 "Player에 붙이고 연결할까요?"라고 묻고 사용자가 답함.
+```
+붙여줘
+```
+**결과**: `Player`에 `BulletTracer` 컴포넌트 1개 추가(오브젝트 생성·삭제 없음, 스크립트 변경 없음), 세 칸 연결 — `_weaponSystem`=`Player`의 WeaponSystem, `_cameraTransform`=`Main Camera`, `_ballPrefab`=`BulletBall.prefab`. 다시 읽어 확인: 세 칸 모두 값 있음, 오프셋 (0.3,-0.25,0.5)·속도 80·풀 32. 콘솔 에러·경고 0건. 씬 저장 안 함.
+**AI 검증(플레이 모드에서 `Fire()`를 직접 호출, 프레임이 2에서 멈춘 상태)**: ✔ 발사 전 활성 공 0개 → 발사 후 1개(`BulletBall(Clone)`), 위치 (0.30, 1.45, 0.50)가 카메라 기준 총구 오프셋으로 계산한 시작 위치와 일치, 명중 대상은 `Target_2` (0, 1.7, 7.5). 테스트 후 플레이를 멈췄고 씬에 공 잔여 0개·`timeScale` 1 확인, 씬은 저장하지 않음. **확인하지 못한 것**: 공이 실제로 날아가 명중 지점에서 사라지는 것(프레임이 멈춰 시간이 흐르지 않음), 화면에서 보이는 크기·속도·색, 연사 시 느낌 — 사람의 플레이 테스트 필요.
+
+#### 추가 요청 — 총기 반동(Recoil)
+**사람의 플레이 테스트 판정(후속 입력 전문, 프롬프트 앞부분)**: `테스트 통과, 다음 진행해` → 사용자가 총알이 날아가는 연출(BulletTracer)을 직접 플레이해 통과했다고 판정함(AI는 실제 화면을 보지 못했고 사용자의 판정에 따름).
+```
+FPS 총기 반동(Recoil) 시스템을 구현해줘.
+목표:
+
+* 총을 발사하면 카메라가 위쪽으로 튀는 반동이 발생한다.
+* 조준하지 않을 때는 반동이 크게 발생한다.
+* 조준 중에는 반동이 눈에 띄게 감소한다.
+* 반동이 발생한 후 카메라가 부드럽게 원래 조준 방향으로 돌아온다.
+
+[기존 코드 구조]
+
+* PlayerController: 마우스 시점 회전 및 카메라 제어
+* WeaponSystem: 총기 발사 및 탄약 관리
+* AimController: 조준 상태 관리
+   * IsAiming으로 현재 조준 여부 확인
+* WeaponSystem과 DamageDealer는 ShotHit 이벤트를 이용하는 기존 구조를 유지한다.
+
+[구현 조건]
+
+1. 발사 반동
+
+* 실제 총알이 발사되는 순간 반동 발생
+* 적이나 벽에 맞았는지와 관계없이 발사하면 반동 발생
+* 카메라가 위쪽으로 튀도록 구현
+* 연속 발사 시 반동이 누적될 수 있도록 구현
+
+2. 조준 중 반동 감소
+
+* AimController의 IsAiming을 활용
+* 일반 사격과 조준 사격의 반동 강도를 별도로 설정
+* 조준 중에는 일반 사격보다 반동이 확실히 작아야 함
+* 인스펙터에서 두 반동 강도를 조절할 수 있도록 구현
+
+3. 반동 복구
+
+* 발사 직후 반동은 빠르게 적용
+* 이후 카메라가 부드럽게 원래 방향으로 복귀
+* 마우스로 시점을 조작하는 것과 충돌하지 않도록 구현
+* 반동 복구 중에도 마우스 시점 조작 가능
+
+4. 인스펙터 설정
+
+* 일반 사격 반동 강도
+* 조준 사격 반동 강도
+* 반동 복구 속도
+* 반동 적용 속도
+* 반동 최대 누적량
+
+[중요한 구현 규칙]
+
+* 먼저 PlayerController, WeaponSystem, AimController의 실제 코드를 확인할 것.
+* 카메라 회전을 여러 컴포넌트가 동시에 제어하지 않도록 할 것.
+* 기존 마우스 시점 회전 로직을 최대한 유지할 것.
+* WeaponSystem의 기존 발사, 탄약, 재장전, ShotHit 로직을 훼손하지 말 것.
+* 발사 이벤트가 없다면 실제 발사 성공 시점에 ShotFired 이벤트를 추가할 것.
+* AimController의 IsAiming을 직접 활용할 것.
+* 기존 파일 수정은 필요한 부분으로 최소화할 것.
+* 불필요한 리팩터링 금지.
+
+작업 범위:
+
+* 기존 구조를 먼저 분석하고 가장 적합한 구현 방식을 선택할 것.
+* 새 파일을 만들 경우 역할을 명확하게 분리할 것.
+* 씬 오브젝트는 아직 만들지 말 것.
+* 구현 후 수정 및 생성한 파일과 Inspector 연결 방법을 설명할 것.
+* Unity 콘솔 에러 및 경고를 확인할 것.
+```
+**결과(스크립트 3개: 생성 1 + 수정 2, 씬·프리팹 미수정)**: **분석**: `PlayerController.HandleLook`이 매 프레임 카메라 `localRotation`을 마우스 pitch 하나로 덮어쓰므로, 반동을 다른 컴포넌트가 카메라에 직접 곱하면 회전을 두 곳이 쓰게 되고 `PlayerController`가 꺼진 뒤(게임 종료)에는 누적됨. 그래서 카메라 회전 쓰기를 `PlayerController` 한 곳에 두고, 반동은 마우스 pitch와 분리한 값으로 마지막에만 더하는 방식을 선택. ① 새 `Assets/Scripts/Player/RecoilController.cs` — 카메라를 직접 돌리지 않고 반동 각도만 계산해 `PlayerController.RecoilPitch`로 넘김. `WeaponSystem.ShotFired`를 구독(OnEnable/OnDisable)해 발사 때 `AimController.IsAiming`이면 `_aimRecoil`, 아니면 `_hipRecoil`만큼 목표 반동을 쌓고 `_maxAccumulation`으로 제한. 매 프레임 목표 반동은 `_recoverySpeed`로 0으로 지수 감쇠, 적용 반동은 `_applySpeed`로 목표를 뒤따름(튄 뒤 부드럽게 복귀). 인스펙터: `_hipRecoil`(기본 2°), `_aimRecoil`(0.6°), `_applySpeed`(40), `_recoverySpeed`(5), `_maxAccumulation`(12°) 및 참조 3칸(`_weaponSystem`·`_aimController`·`_playerController`) — 기본값은 AI가 정함. ② `WeaponSystem.cs` — `public event Action ShotFired` 추가, `Fire()` 끝(레이캐스트와 `ShotHit` 뒤)에서 맞았는지와 상관없이 발행(반동이 같은 샷의 방향을 바꾸지 않게). 기존 발사·탄약·재장전·`ShotHit`·`AmmoChanged` 로직 변경 없음(`git diff`는 추가 2줄). ③ `PlayerController.cs` — `public float RecoilPitch { get; set; }` 추가, `HandleLook`의 카메라 회전을 `Clamp(_pitch − RecoilPitch, 최소, 최대)`로 변경(`git diff` +3줄 −1줄). 마우스 pitch(`_pitch`)는 건드리지 않아 복구 중에도 마우스 조작 가능하고 반동이 사라지면 마우스로 정한 방향으로 돌아옴. 컴파일 에러·경고 0건, 타입·이벤트·프로퍼티·직렬화 필드 로드 확인, `PlayerController`의 기존 연결 유지.
+**CLAUDE.md 규칙 초과 기록**: 작업 규칙 1(한 번에 파일 1~2개)을 초과해 3개 파일을 수정·생성함. 요청이 `ShotFired` 이벤트 추가(`WeaponSystem`)와 "카메라 회전을 한 곳에서만 제어"(`PlayerController`)를 함께 요구해 불가피하다고 판단했고, 사용자에게 보고함.
+**알아둘 점(AI)**: 이 반동은 "화면 흔들림"이 아니라 레이 방향도 바뀌는 실제 시점 반동(다음 샷부터 위로 향함). 복귀는 마우스 pitch 기준이라 마우스로 반동을 눌러 내렸다면 그 방향이 새 조준 방향이 됨. **미확인**: 씬에 컴포넌트가 없어 동작·체감 세기·연사 누적·조준 중 감소는 확인하지 못함(씬 오브젝트는 요청대로 만들지 않음). 플레이 테스트는 사람이 해야 함.
+
+#### 후속 프롬프트 (Player에 RecoilController 붙이고 연결, MCP 직접 작업)
+AI가 "붙이라고 하시면 바로 붙일게요"라고 안내했고 사용자가 답함.
+```
+붙여줘
+```
+**결과**: `Player`에 `RecoilController` 컴포넌트 1개 추가(오브젝트 생성·삭제 없음, 스크립트 변경 없음), 세 칸 연결 — `_weaponSystem`·`_aimController`·`_playerController` 모두 `Player`의 해당 컴포넌트. 다시 읽어 확인: 세 칸 값 있음, 기본값 일반 2°·조준 0.6°·적용 40·복구 5·최대 12°. 콘솔 에러·경고 0건. 씬 저장 안 함.
+**AI 검증(플레이 모드에서 메서드를 직접 호출, 프레임이 2에서 멈춘 상태)**: ✔ 일반 사격 1발 → 목표 반동 2, 조준 상태 사격 1발 → 0.6(일반의 30%), 일반 사격 12발 연속 → 12에서 멈춤(최대 누적량 제한). ✔ `PlayerController.RecoilPitch`를 5로 두고 `HandleLook`을 호출하면 카메라 x 회전이 355°(5° 위), 500으로 두면 280°(−80° 하한으로 제한), 0으로 되돌리면 0° — 카메라 회전 적용 경로 확인. 테스트 후 플레이를 멈췄고 카메라 회전 0·`timeScale` 1 확인, 씬은 저장하지 않음. **확인하지 못한 것**: 시간이 흐르는 동안의 튐·복귀(프레임이 멈춤), 마우스 조작과의 상호작용, 체감 세기와 연사 시 느낌 — 사람의 플레이 테스트 필요.
+
+#### 후속 프롬프트 (반동 세기 조정)
+```
+테스트 통과, 반동이 더 세졌음 좋겠어
+```
+**사람의 플레이 테스트 판정**: 사용자가 반동 시스템 자체(일반·조준 반동, 복구, 마우스 조작)는 통과했다고 판정함(AI는 직접 보지 못했고 사용자의 판정에 따름). 세기만 더 세게 요청.
+**결과(코드 변경 없음, 씬의 인스펙터 값만 수정)**: `Player`의 `RecoilController` — 일반 사격 반동 2°→4°, 조준 사격 반동 0.6°→1.2°(일반 대비 30% 비율 유지), 최대 누적 12°→20°(세진 반동이 쌓일 여유). 적용 속도 40·복구 속도 5는 그대로. 정확히 얼마나 세게 원하는지는 사용자가 말하지 않아 "두 배"로 AI가 정함 — 다시 읽어 확인. 코드의 기본값(2/0.6/12)은 바꾸지 않았고 씬 값만 바뀜. 씬 저장 안 함. 플레이 테스트는 사람이 해야 함.
+
+#### 추가 요청 — 조준점(Crosshair) UI
+**사람의 플레이 테스트 판정(후속 입력 전문, 프롬프트 앞부분)**: `테스트 통과, 다음 진행해` → 사용자가 반동을 세게 올린 값을 직접 플레이해 통과했다고 판정함(AI는 직접 보지 못했고 사용자의 판정에 따름).
+```
+FPS 게임에 조준점(Crosshair) UI를 추가해줘.
+UI Toolkit이 아닌 uGUI를 사용할 것.
+텍스트가 필요하다면 TextMeshPro 대신 UnityEngine.UI.Text를 사용할 것.
+[목표]
+평상시에는 화면 중앙에 작은 십자선이 표시되고, 조준 중에는 십자선이 중앙으로 모여 더욱 정밀한 조준 상태를 표현한다.
+[기본 상태]
+
+* 화면 정중앙에 십자선 표시
+* 상하좌우 4개의 얇은 선으로 구성
+* 중앙에는 작은 점 표시
+* 선 사이에 적절한 간격을 둘 것
+
+[조준 상태]
+
+* AimController의 IsAiming을 활용
+* 상하좌우 선이 화면 중앙을 향해 가까워지도록 구현
+* 중앙의 점은 유지
+* 일반 상태보다 간격이 좁아야 함
+* 상태 전환은 부드러운 애니메이션으로 처리
+
+[구현 조건]
+
+* uGUI의 Image를 이용해 십자선 구성
+* 화면 해상도와 관계없이 항상 화면 중앙에 위치
+* 십자선 간격과 선 두께는 Inspector에서 조절 가능
+* 일반 상태와 조준 상태의 간격을 각각 Inspector에서 조절 가능
+* 조준 상태 전환 속도 조절 가능
+* Update에서 AimController.IsAiming을 매 프레임 폴링하지 말 것.
+* AimController에 조준 상태 변경 이벤트가 있는지 먼저 확인하고 구독할 것.
+* 이벤트가 없다면 기존 조준 로직을 유지하면서 상태 변경 이벤트를 최소한으로 추가할 것.
+* 이벤트 구독은 OnEnable, 해제는 OnDisable에서 처리할 것.
+
+[기존 코드 호환성]
+
+* PlayerController, AimController, HUDController의 실제 코드를 먼저 확인할 것.
+* 기존 조준 기능 및 카메라 회전 로직을 수정하지 말 것.
+* 반동 시스템이 있다면 조준점 UI와 충돌하지 않도록 할 것.
+* 기존 HUD를 훼손하지 말 것.
+* Find 계열 함수 사용 금지
+* 모든 참조는 SerializeField로 연결할 것.
+
+[작업 범위]
+
+* 새 CrosshairController.cs 파일 생성
+* 필요한 경우에만 기존 파일을 최소 수정
+* UI 오브젝트는 아직 생성하지 말 것.
+* 필요한 UI 오브젝트 계층 구조와 Inspector 연결 방법을 설명할 것.
+* Unity 콘솔 에러 및 경고 확인
+```
+**결과(스크립트 2개: 생성 1 + 수정 1, 씬·프리팹 미수정)**: **확인**: `AimController`에는 조준 상태가 바뀔 때 알리는 이벤트가 없고 `IsAiming` 프로퍼티만 있었음 → 요청에 따라 최소 추가. ① `AimController.cs` — `public event System.Action<bool> AimStateChanged` 추가, `SetAiming` 끝에서 발행(우클릭 누름·뗌, 비활성화로 조준 해제할 때). `git diff`는 추가 3줄, 기존 조준·카메라 로직 변경 없음. ② 새 `Assets/Scripts/UI/CrosshairController.cs`(`ArenaBreak.UI`) — `AimStateChanged`를 `OnEnable`에서 구독·`OnDisable`에서 해제, `Update`에서 `IsAiming`을 폴링하지 않고(이벤트로 받은 값만 사용) 목표 간격과 현재 간격이 다를 때만 지수 보간으로 4개 선(`RectTransform`)을 재배치, 전환이 끝나면 계산을 멈춤. 켜질 때 `IsAiming`을 한 번만 읽어 전환 없이 현재 상태 간격으로 시작. 위·아래·왼쪽·오른쪽 선은 중앙 기준 앵커(해상도와 무관)에서 `(간격 + 길이/2)`만큼 떨어뜨려 선의 안쪽 끝이 정확히 간격만큼 떨어지게 함. 인스펙터: `_aimController`, 선 4칸, `_lineLength`(10)·`_lineThickness`(2), `_normalGap`(12)·`_aimGap`(3), `_transitionSpeed`(14) — 기본값은 AI가 정함. 인스펙터 값을 바꾸면 `OnValidate`가 다시 배치하도록 표시만 함. 중앙의 점은 코드가 건드리지 않음(정적 Image). `Find` 계열 없음, 모든 참조 `[SerializeField]`. 컴파일 에러·경고 0건, 타입·이벤트·직렬화 필드 로드 확인, `AimController` 기존 연결 유지. `PlayerController`·`HUDController`·반동 코드는 수정하지 않음.
+**반동과의 충돌(AI 분석)**: 십자선은 화면 중앙 고정 UI이고 `WeaponSystem`의 레이는 항상 카메라 정중앙(= 화면 중앙)을 지나므로, 반동으로 카메라가 올라가도 십자선은 실제 조준 방향을 가리킴 — 따로 보정할 것이 없어 코드에 반동 의존성을 넣지 않음.
+**미확인**: 씬에 UI가 없어 실제 화면 표시·전환은 확인하지 못함(요청대로 UI 오브젝트는 만들지 않음). 플레이 테스트는 사람이 해야 함.
+
+#### 후속 프롬프트 (조준점 UI 오브젝트 생성 + 연결, MCP 직접 작업)
+AI가 "만들어서 연결해 달라고 하시면 직접 할게요"라고 안내했고 사용자가 답함.
+```
+연결해
+```
+**결과**: 기존 `HUD` 캔버스 아래에 `Crosshair`(앵커·피벗 중앙, 크기 0, `CrosshairController`) 생성, 그 자식 `Dot`(4×4)·`Top`·`Bottom`·`Left`·`Right`(전부 `Image` 흰색, 앵커·피벗 (0.5,0.5), Raycast Target 끔). 선의 크기·위치는 기본값(간격 12·길이 10·두께 2)과 같게 에디터에서도 보이도록 배치. 다시 읽어 확인한 `CrosshairController` 5칸: `_aimController`=`Player`의 AimController, `_top`·`_bottom`·`_left`·`_right`=같은 이름 오브젝트의 RectTransform — None 없음. 기존 HUD 자식(`HealthBar`·`AmmoText`·`WaveText`·`KillText`·`ResultPanel`)과 `HUDController` 10칸(None 0)은 그대로. 콘솔 에러·경고 0건. 씬 저장 안 함.
+**AI 검증(플레이 모드에서 `SetAiming`과 `Update`를 직접 호출, 프레임이 2에서 멈춘 상태)**: ✔ 시작 시 상단 선 y=17(일반 간격 12 + 길이 절반 5), 조준 이벤트 발행 후 y≈8(조준 간격 3 + 5)로 모이고 점은 (0,0) 유지, 조준 해제 후 y≈17로 복귀 — 이벤트 구독·간격 전환·점 유지 경로 확인(최종값이 목표와 0.01 이내에서 멈춤). 테스트 후 플레이를 멈췄고 `timeScale` 1·상단 선 y=17 확인, 씬은 저장하지 않음. **확인하지 못한 것**: 실제 화면에서 보이는 크기·모양·색(흰색이라 밝은 배경에서 안 보일 수 있음), 실시간 전환의 부드러움, 실제 우클릭 입력 — 사람의 플레이 테스트 필요.
+
+#### 추가 요청 — 비네팅(Vignette) UI
+**사람의 플레이 테스트 판정(후속 입력 전문, 프롬프트 앞부분)**: `테스트 통과, 다음 진행해` → 사용자가 조준점 UI를 직접 플레이해 통과했다고 판정함(AI는 직접 보지 못했고 사용자의 판정에 따름).
+```
+FPS 게임에 비네팅(Vignette) UI 효과를 추가해줘.
+목표:
+화면 중앙은 밝게 유지하고 화면 모서리로 갈수록 어두워지는 효과를 구현한다.
+[구현 조건]
+
+* 화면 전체를 덮는 uGUI Image 사용
+* 모서리 부분이 자연스럽게 어두워지는 그라데이션 적용
+* 중앙은 투명하게 유지
+* 화면 해상도와 비율이 달라져도 자연스럽게 표시
+* 조준점과 기존 HUD보다 뒤쪽에 렌더링되도록 배치
+* 화면 중앙의 시야를 과도하게 가리지 않도록 할 것
+
+[조준 연동]
+
+* AimController의 IsAiming 상태 변경 이벤트 구독
+* 평상시에는 은은한 비네팅
+* 조준 중에는 비네팅 강도를 조금 높임
+* 조준 해제 시 원래 강도로 부드럽게 복귀
+* 강도와 전환 속도는 Inspector에서 조절 가능
+
+[구현 규칙]
+
+* 기존 HUDController와 CrosshairController 구조를 먼저 확인
+* 기존 조준 로직 수정 금지
+* Update에서 조준 상태를 폴링하지 말 것
+* 이벤트 구독은 OnEnable, 해제는 OnDisable
+* Find 계열 함수 금지
+* 불필요한 파일 수정 금지
+
+[작업 범위]
+
+* VignetteController.cs 생성
+* 필요한 이미지 리소스 제작 또는 적절한 그라데이션 구현 방법 제시
+* UI 오브젝트는 아직 생성하지 말 것
+* 필요한 UI 계층 구조와 Inspector 연결 방법 설명
+* Unity 콘솔 에러 및 경고 확인
+```
+**결과(스크립트 1개 + 이미지 1개, 기존 파일 수정 없음, 씬 미수정)**: **구조 확인**: `AimController.AimStateChanged(bool)`·`IsAiming`이 이미 있어(조준점 UI 때 추가) 기존 파일을 고치지 않음. `CrosshairController`와 같은 패턴(이벤트 구독, `OnEnable`에서 한 번 읽어 시작, 값이 다를 때만 `Update`에서 지수 보간)을 따름. ① 새 `Assets/Scripts/UI/VignetteController.cs`(`ArenaBreak.UI`) — `AimStateChanged`를 `OnEnable`에서 구독·`OnDisable`에서 해제, `Update`에서 `IsAiming` 폴링 없음, 이미지의 색(RGB)은 건드리지 않고 알파만 일반/조준 농도로 바꿈. 인스펙터: `_aimController`, `_vignetteImage`, `_normalIntensity`(0.35)·`_aimIntensity`(0.55, 일반보다 높게)·`_transitionSpeed`(8) — 기본값은 AI가 정함, 값을 바꾸면 `OnValidate`가 다시 적용하도록 표시. `Find` 계열 없음. ② 이미지 리소스 `Assets/Materials/Vignette.png`(256×256, 검정, 알파만 방사형 그라데이션)를 코드로 생성 — 알파는 중심에서 반경 0.5까지 0(투명), 0.5~1.4에서 smoothstep으로 증가(가장자리 중앙 약 0.58, 모서리 1.0). 화면에 늘려 붙이면 화면 비율에 맞는 타원형이 되어 해상도·비율이 달라져도 자연스러움. 가져오기 설정: Sprite(Single), Alpha Is Transparency, 밉맵 끔, Clamp, 무압축. PNG를 다시 읽어 알파 값 확인(중앙 0.00, 1/4 지점 0.00, 가장자리 중앙 0.58, 모서리 1.00, 모서리 RGB 0). 컴파일 에러·경고 0건(MCP WebSocket 경고만), 타입·직렬화 필드 로드 확인.
+**알아둘 점(AI)**: 규약의 디렉터리 구조에 텍스처 폴더가 없고 새 폴더 생성은 규약 밖이라 PNG를 `Assets/Materials`에 둠(원하면 이동 가능). 첫 검증 호출은 텍스처를 읽기 불가 상태로 읽으려다 실패했으나 PNG는 이미 정상 생성·가져오기 완료됐고, 파일을 직접 디코딩해 검증함. **미확인**: 씬에 UI가 없어 실제 화면 표시·전환은 확인하지 못함(요청대로 UI 오브젝트는 만들지 않음). 플레이 테스트는 사람이 해야 함.
+
+#### 후속 프롬프트 (비네팅 UI 오브젝트 생성 + 연결, MCP 직접 작업)
+AI가 "만들어서 연결하라고 하시면 직접 할게요"라고 안내했고 사용자가 답함.
+```
+만들어서 연결해
+```
+**결과**: 기존 `HUD` 캔버스의 **첫 번째 자식**(sibling index 0)으로 `Vignette` 생성 — `RectTransform` 앵커 (0,0)~(1,1)·오프셋 0(화면 전체), `Image`(스프라이트 `Vignette.png`, 검정, 알파 0.35, Raycast Target 끔), `VignetteController`. 다시 읽어 확인한 2칸: `_aimController`=`Player`의 AimController, `_vignetteImage`=같은 오브젝트의 Image — None 없음. 인스펙터 값 일반 0.35·조준 0.55·전환 속도 8. `HUD` 자식 순서 `Vignette → HealthBar → AmmoText → WaveText → KillText → ResultPanel → Crosshair`로 비네팅이 가장 뒤에 그려짐. 기존 `HUDController` 10칸·`CrosshairController` 5칸은 모두 None 0 그대로. 콘솔 에러·경고 0건(MCP WebSocket 경고만). 씬 저장 안 함.
+**AI 검증(플레이 모드에서 `SetAiming`과 `Update`를 직접 호출, 프레임이 2에서 멈춘 상태)**: ✔ 시작 알파 0.350, 조준 이벤트 후 0.549(≈0.55)로 상승하고 색 RGB는 (0,0,0) 유지, 조준 해제 후 0.351(≈0.35)로 복귀. 테스트 후 플레이를 멈췄고 `timeScale` 1 확인, 씬은 저장하지 않음. **확인하지 못한 것**: 실제 화면의 모양·어두운 정도(가장자리 알파 0.58·모서리 1.0 × 농도), 실시간 전환의 부드러움, 중앙 시야를 가리지 않는지의 체감 — 사람의 플레이 테스트 필요.
+
+#### 추가 요청 — 총구 화염·탄피·연기(발사 이펙트)
+**사람의 플레이 테스트 판정(후속 입력 전문, 프롬프트 앞부분)**: `테스트 통과, 다음 진행해` → 사용자가 비네팅 UI를 직접 플레이해 통과했다고 판정함(AI는 직접 보지 못했고 사용자의 판정에 따름).
+```
+총구 화염 및 발사 이펙트 구현
+기존 FPS 게임에 총기 발사 시 시각적 효과를 추가해줘.
+1. 총구 화염 (Muzzle Flash)
+
+* 총알이 실제로 발사되는 순간 총구에서 짧은 화염 효과가 재생된다.
+* 발사할 때마다 효과가 나타나며 빠르게 사라진다.
+* 연속 발사 시에도 자연스럽게 반복 재생되어야 한다.
+* 총구 방향과 위치에 맞게 표시한다.
+
+2. 탄피 배출 (Shell Ejection)
+
+* 발사 순간 탄피가 총기의 배출구에서 튀어나온다.
+* 탄피는 물리적으로 자연스럽게 떨어지고 바닥에 굴러갈 수 있다.
+* 탄피가 계속 누적되어 성능이 저하되지 않도록 일정 시간이 지나면 제거한다.
+* 탄피의 배출 방향과 힘은 Inspector에서 조절할 수 있도록 한다.
+
+3. 총구 연기 (Muzzle Smoke)
+
+* 발사 직후 총구에서 소량의 연기가 발생한다.
+* 연기는 짧은 시간 동안 퍼진 후 자연스럽게 사라진다.
+* 화면을 과도하게 가리지 않도록 연기 양과 지속 시간을 조절할 수 있게 한다.
+
+4. 기존 코드 연동
+
+* 먼저 기존 `WeaponSystem`, `PlayerController`, 총기 오브젝트의 계층 구조를 확인한다.
+* `WeaponSystem`의 실제 발사 처리 흐름을 분석한다.
+* 발사 성공 시점에 이펙트가 실행되도록 연결한다.
+* 기존 `ShotHit` 이벤트는 명중 이벤트이므로 발사 이펙트 실행에 사용하지 않는다.
+* 발사에 성공했지만 적을 맞히지 못한 경우에도 이펙트가 재생되어야 한다.
+* 기존 탄약, 재장전, 발사 간격, 데미지 처리 로직은 변경하지 않는다.
+* 발사 이벤트가 없다면 기존 구조를 유지하면서 필요한 이벤트만 최소한으로 추가한다.
+
+5. Inspector 설정
+다음 항목을 Inspector에서 연결하고 조절할 수 있도록 한다.
+
+* 총구 위치 Transform
+* 탄피 배출 위치 Transform
+* 총구 화염 효과
+* 총구 연기 효과
+* 탄피 프리팹
+* 탄피 배출 방향 및 힘
+* 이펙트 지속 시간 및 제거 시간
+
+6. 구현 주의사항
+
+* 기존 스크립트를 먼저 분석하고 실제 구조에 맞게 구현한다.
+* 존재하지 않는 변수나 이벤트를 임의로 가정하지 않는다.
+* 기존 기능을 불필요하게 리팩터링하지 않는다.
+* 반복 발사 시 이펙트가 정상적으로 재생되어야 한다.
+* 이펙트 오브젝트가 플레이어 카메라를 가리거나 화면에 부자연스럽게 나타나지 않도록 한다.
+* 불필요한 매 프레임 Instantiate/Destroy 반복을 최소화한다.
+
+7. 작업 결과
+
+* 수정하거나 생성한 파일 목록
+* Unity 오브젝트 계층 구조
+* Inspector에서 연결해야 하는 항목
+* 필요한 이펙트 및 프리팹 제작 방법
+* 테스트 결과와 콘솔 오류 여부
+
+중요: Unity 씬에 오브젝트를 직접 생성하지 말고, 필요한 오브젝트의 계층 구조와 Inspector 연결 방법만 안내해줘.
+```
+**결과(스크립트 1개 + 프리팹 3개 + 머티리얼 3개 + 텍스처 1개, 기존 스크립트·씬 미수정)**: **분석**: `WeaponSystem.Fire()`는 `ShotHit`(명중 때만)와 직전 작업에서 추가한 `ShotFired`(맞았는지와 무관, 레이 뒤에 발행)를 가짐 → `WeaponSystem`을 고치지 않고 `ShotFired`를 구독. 총기 모델은 없고 `Player/Main Camera`뿐이라 총구·배출 위치는 카메라 자식 빈 Transform으로 새로 만들어야 함(씬 생성 금지라 안내만). ① 새 `Assets/Scripts/Player/ShotEffects.cs` — `ShotFired` 구독(OnEnable/OnDisable). 발사마다 ⓐ 총구 Transform 위치·방향에 화염/연기 파티클 시스템을 맞추고 `Emit(개수)`로 즉시 방출(연사 중에도 매 발 새로 터지고 Instantiate 없음), ⓑ 탄피를 `ObjectPool<Rigidbody>`에서 꺼내 배출 위치에서 `_ejectDirection`(배출 지점 로컬 방향, 기본 (1,1,-0.2))·`_ejectForce`(2.5)·`_spinForce`(15)로 발사, `_shellLifetime`(3초) 뒤 풀로 반환(큐로 관리, `Update`는 만료된 앞쪽만 확인), 동시 탄피 수 `_maxShells`(32) 초과 시 가장 오래된 것 재사용. 탄피는 플레이어에 끌려가지 않도록 런타임에 만든 `Shells` 컨테이너(월드)에 둠. 화염·연기 지속 시간은 `Awake`에서 파티클 `startLifetime`에 덮어써(`_flashDuration` 0.05초·`_smokeDuration` 0.8초) 인스펙터에서 조절, 양은 `_flashParticleCount`(3)·`_smokeParticleCount`(6). 기본값은 AI가 정함. ② 프리팹 `Assets/Prefabs/MuzzleFlash.prefab`(가산 합성, 작은 노란 입자, 재생 시작 안 함·반복 안 함), `MuzzleSmoke.prefab`(알파 합성 회색, 커지며 투명해짐, 약간 위로 뜸), `ShellCasing.prefab`(Cylinder 0.015×0.02, 황동 재질, `Rigidbody` 질량 0.01·연속 충돌 감지, `CapsuleCollider`, **레이어 `Ignore Raycast`**). ③ 머티리얼 `MuzzleFlash.mat`·`MuzzleSmoke.mat`(URP Particles/Unlit 투명)·`ShellCasing.mat`(URP Lit 금속), 텍스처 `Assets/Materials/SoftParticle.png`(128×128 부드러운 원형 알파). 컴파일 에러 0건, 타입·직렬화 필드 15개 로드, 프리팹 값을 다시 읽어 확인, 프리팹용으로 씬에 만든 임시 오브젝트는 삭제(남지 않음).
+**겪은 문제**: 처음 연기·화염 머티리얼에 쓰려던 내장 텍스처 `Default-Particle.psd`를 Unity 6에서 찾지 못해 콘솔에 에러 로그 2건이 남음(`Failed to find Default-Particle.psd` 등) → 직접 만든 `SoftParticle.png`로 교체해 해결, 이후 동일 오류 없음. 재실행 중 C# 6 변수명 충돌로 컴파일 실패 1회 → 이름 변경 후 성공.
+**알아둘 점(AI)**: ① 탄피 콜라이더가 총알 레이캐스트에 맞지 않도록 레이어를 `Ignore Raycast`로 했는데, `WeaponSystem`의 `_hitMask`가 현재 `Everything`이라 그대로면 탄피에 맞음 → 씬 연결 때 `WeaponSystem`의 Hit Mask에서 `Ignore Raycast`를 해제해야 함(`ProjectSettings` 수정 금지 규약 때문에 새 레이어를 만들지 않음). ② 탄피가 적 투사체 트리거에 닿으면 투사체가 사라질 수 있음(드문 경우). **미확인**: 씬에 컴포넌트가 없어 화염·연기·탄피의 실제 모습·물리·연사 동작은 확인하지 못함(씬 오브젝트 생성 금지 요청 때문). 플레이 테스트는 사람이 해야 함.
+
+#### 후속 프롬프트 (발사 이펙트 오브젝트 생성 + 연결, MCP 직접 작업)
+AI가 "만들어서 연결해 달라고 하시면 직접 할게요"라고 안내했고 사용자가 답함.
+```
+진행해줘
+```
+**결과**: `Player/Main Camera` 아래에 `Muzzle`(로컬 (0.3,-0.25,0.5)) — 자식으로 `MuzzleFlash`·`MuzzleSmoke` 프리팹 인스턴스 — 와 `ShellEjectPoint`(로컬 (0.3,-0.2,0.45)) 생성, `Player`에 `ShotEffects` 추가·연결. 다시 읽어 확인한 6칸: `_weaponSystem`=Player의 WeaponSystem, `_muzzle`=Muzzle, `_muzzleFlash`·`_muzzleSmoke`=각 ParticleSystem, `_shellEjectPoint`=ShellEjectPoint, `_shellPrefab`=ShellCasing의 Rigidbody — None 없음. 인스펙터 값은 기본값 그대로(화염 3개·0.05초, 연기 6개·0.8초, 배출 방향 (1,1,-0.2)·힘 2.5·회전 15·수명 3초·최대 32개). **전에 알린 대로 `WeaponSystem`의 Hit Mask에서 `Ignore Raycast` 레이어를 뺌**(-1 → -5, 나머지 레이어는 그대로) — 탄피가 총알 레이캐스트를 막지 않게 하려는 것이며 코드 변경 없음, `WeaponSystem`의 기존 연결(입력 에셋·카메라) 유지. 씬 루트는 그대로 9개. 콘솔에는 이전 작업에서 남은 `Default-Particle.psd` 로그 외 새 에러·경고 없음. 씬 저장 안 함.
+**발견한 오류와 처리(AI)**: 플레이를 멈출 때 콘솔에 `MissingReferenceException`(Transform이 이미 파괴됨)이 1건 남음. 스택 트레이스를 보니 원인은 이번에 만든 `ShotEffects`가 아니라 **이전에 만든 `BulletTracer.OnDisable`**(`BulletTracer.cs:67`, 풀 반환 콜백 `BulletTracer.cs:48`에서 이미 파괴된 공의 `gameObject`에 접근) — 날아가는 공이 있는 채로 플레이를 멈추면 발생(이번 테스트에서 연사해 공이 많이 떠 있었음). `ShotEffects`도 같은 패턴이라 선제적으로 방어 코드를 넣음: 풀 반환·파괴 콜백과 `OnDisable`에서 파괴된 탄피는 건너뜀(`ReleaseShell`/`DestroyShell`, 컴파일 에러 0건). 수정 후 다시 연사→정지해도 스택 트레이스에 `ShotEffects`는 나오지 않음. **`BulletTracer`는 이번 요청 범위 밖이라 고치지 않고 보고만 함**(CLAUDE.md "범위 밖 코드는 수정하지 말고 보고").
+**AI 검증(플레이 모드에서 `Fire()`를 직접 호출, 프레임이 2에서 멈춘 상태)**: ✔ 발사 1회 → 화염 입자 0→3, 연기 0→6, 탄피 1개, 탄약 12→11(기존 탄약 로직 정상). ✔ 화염 위치가 `Muzzle` 위치와 일치((0.30, 1.45, 0.50)). ✔ 탄피는 `Shells` 컨테이너(월드) 아래, 레이어 `Ignore Raycast`, 속도 (1.75, 1.75, -0.35)로 크기 2.5(설정한 힘). ✔ 41발 연사 → 동시 탄피 32개에서 멈춤(상한·재사용 동작, 새로 만들지 않음), 화염·연기 입자는 각 프리팹의 최대 입자 수(16, 48)까지만. 테스트 후 플레이를 멈췄고 `timeScale` 1·`Shells` 컨테이너 정리 확인, 씬은 저장하지 않음. **확인하지 못한 것**: 실제 화면에서 보이는 모습(크기·밝기·연기 농도), 탄피가 바닥에 떨어져 구르는 물리, 3초 뒤 사라지는 것(시간이 흐르지 않음), 총구가 시야를 가리지 않는지 — 사람의 플레이 테스트 필요.
+
+#### 추가 요청 — 히트 마커(Hit Marker)
+**사람의 플레이 테스트 판정(후속 입력 전문, 프롬프트 앞부분)**: `테스트 이상 무.` → 사용자가 발사 이펙트(총구 화염·연기·탄피)를 직접 플레이해 이상 없다고 판정함(AI는 실제 화면을 보지 못했고 사용자의 판정에 따름).
+```
+Hit Marker (피격 확인 표시) 구현
+기존 FPS 게임에 적 명중 여부를 시각적으로 알려주는 Hit Marker 기능을 추가해줘.
+1. 기본 동작
+
+* 총알이 적에게 명중하면 화면 중앙 조준점에 Hit Marker가 표시된다.
+* 명중 순간 짧게 표시된 후 자연스럽게 사라진다.
+* 적을 명중시키지 못했거나 벽, 바닥 등 환경 오브젝트에 맞았을 때는 표시하지 않는다.
+* 연속으로 적을 명중시켜도 표시가 정상적으로 갱신되어야 한다.
+
+2. UI 디자인
+
+* 기존 CrosshairController의 조준점 UI를 유지한다.
+* Hit Marker는 기존 조준점 중앙을 기준으로 표시한다.
+* 기본 조준점과 구분되는 작은 X자 형태로 표현한다.
+* 명중 시 잠깐 나타났다가 투명해지도록 한다.
+* 일반 사격과 조준 사격 모두 표시되어야 한다.
+* 기존 조준점의 위치, 크기, 조준 상태별 간격은 변경하지 않는다.
+
+3. 기존 코드 연동
+
+* 먼저 `WeaponSystem`, `DamageDealer`, `IDamageable`, `CrosshairController`의 실제 코드를 확인한다.
+* 현재 프로젝트에서 실제 명중 처리가 이루어지는 흐름을 분석한다.
+* 기존 `WeaponSystem.ShotHit` 이벤트가 `Action<RaycastHit>` 형태로 존재하므로 이를 우선 활용한다.
+* 단, Raycast 명중 자체와 실제 데미지 적용 여부를 구분한다.
+* 적에게 실제로 데미지가 적용된 경우에만 Hit Marker가 표시되어야 한다.
+* 벽이나 바닥 등 데미지를 받지 않는 오브젝트에는 표시하지 않는다.
+* 기존 데미지 처리와 이벤트 구조를 최대한 유지한다.
+* 필요한 경우 `DamageDealer`에서 실제 데미지 적용 성공 여부를 전달하는 이벤트를 최소한으로 추가한다.
+* 이벤트 이름이나 메서드는 실제 코드를 확인한 후 결정한다.
+
+4. Inspector 설정
+다음 항목을 조절할 수 있도록 한다.
+
+* Hit Marker UI 참조
+* 표시 지속 시간
+* 사라지는 속도
+* 표시 크기
+* 색상
+* 연속 명중 시 표시 갱신 방식
+
+5. 구현 주의사항
+
+* 기존 CrosshairController와 기능이 중복되지 않도록 역할을 분리한다.
+* 기존 조준점 디자인과 애니메이션을 유지한다.
+* 명중 이벤트가 중복 호출되어 표시가 여러 번 겹치지 않도록 한다.
+* 이벤트 구독은 OnEnable, 해제는 OnDisable에서 처리한다.
+* 매 프레임 불필요한 오브젝트를 생성하지 않는다.
+* 기존 WeaponSystem의 발사, 탄약, 재장전, 데미지 로직을 변경하지 않는다.
+
+6. 작업 결과
+
+* 수정하거나 생성한 파일 목록
+* 실제 명중 판정 및 이벤트 연결 구조
+* Unity UI 계층 구조
+* Inspector 연결 방법
+* 적 명중, 벽 명중, 빗나감, 연속 명중 테스트 결과
+* 콘솔 오류 및 경고 여부
+
+중요: Unity 씬에 UI 오브젝트를 직접 생성하지 말고, 필요한 계층 구조와 Inspector 연결 방법만 안내해줘.
+```
+**결과(스크립트 2개: 생성 1 + 수정 1, 씬 미수정)**: **분석**: `WeaponSystem.ShotHit`은 레이가 무엇이든 맞으면(벽·바닥 포함) 발행되고, `DamageDealer.HandleShotHit`이 콜라이더에서 `IDamageable`을 찾아(`GetComponentInParent`, 캐시) `TakeDamage`를 호출. `IDamageable.TakeDamage`는 반환값이 없어 데미지가 실제로 들어갔는지 알 수 없음, `Health.TakeDamage`는 이미 죽은 대상·0 이하 데미지를 무시. ① `DamageDealer.cs`(수정) — `public event Action<RaycastHit> DamageDealt` 추가. 데미지를 받는 대상(`IDamageable`)이 있고 데미지가 0보다 크며 이미 죽은 `Health`가 아닐 때만 `TakeDamage` 호출 후 발행(기존 `target?.TakeDamage`를 이 조건 분기로 바꿈, 데미지 적용 동작은 동일, 죽은 대상을 쏘는 경우만 이벤트가 안 나감). `git diff`는 추가 9줄·삭제 1줄. ② 새 `Assets/Scripts/UI/HitMarkerController.cs`(`ArenaBreak.UI`) — `DamageDealt`를 `OnEnable`에서 구독·`OnDisable`에서 해제. 오브젝트를 새로 만들지 않고 `CanvasGroup` 알파만 조절(표시 중이면 `_displayDuration` 동안 유지 후 `_fadeSpeed`로 투명해짐, `Update`는 표시 중일 때만 동작). 인스펙터: `_damageDealer`, `_group`, `_barA`·`_barB`(X의 두 획, ±45° 회전 Image), `_markerLength`(24)·`_markerThickness`(3)·`_color`(흰색), `_displayDuration`(0.08초)·`_fadeSpeed`(6)·`_refreshMode`(`Restart`: 맞을 때마다 처음부터 다시 / `IgnoreWhileVisible`: 표시 중에는 새 명중 무시) — 기본값은 AI가 정함. `CrosshairController`·`WeaponSystem`·`IDamageable`은 수정하지 않음. 컴파일 에러·경고 0건, 타입·이벤트·직렬화 필드 10개 로드 확인.
+**테스트(플레이 모드에서 `Fire()`·`HandleShotHit`을 직접 호출, 프레임이 2에서 멈춤)**: ✔ 적(체력 30의 `Target_2`) 연속 3발 → 매 발 `ShotHit`+1·`DamageDealt`+1(체력 30→20→10→0, 마지막 발이 처치) ✔ 이미 죽은 대상 4번째 발 → `ShotHit`+1·`DamageDealt` 0(표시 안 됨) ✔ 벽(`S`)·바닥(`Floor`) 명중 → `DamageDealt` 0 ✔ 빗나감(위로 발사, 아무것도 안 맞음) → `ShotHit` 0·`DamageDealt` 0. UI 컴포넌트가 씬에 없어 마커 표시 자체(알파 변화·X 모양)는 확인하지 못함(요청대로 씬 오브젝트는 만들지 않음). 일반·조준 사격 모두 같은 `ShotHit` 경로라 구분 없이 동작(코드 확인). 테스트 후 플레이를 멈췄고 `timeScale` 1 확인.
+**알아둘 점(AI)**: ① "적"을 `Health`를 가진 데미지 대상으로 구현했으므로 빨간 사격 표적(`Target_*`)도 맞으면 표시됨. ② 콘솔에는 이전에 보고한 `BulletTracer.OnDisable`의 `MissingReferenceException`(플레이 정지 시 공이 남아 있을 때)이 이번에도 1건 보임 — 이번 작업과 무관, 아직 고치지 않음.
+
+#### 후속 프롬프트 (히트 마커 UI 오브젝트 생성 + 연결, MCP 직접 작업)
+```
+만들고 연결해줘
+```
+**결과**: 기존 `HUD` 캔버스의 **마지막 자식**으로 `HitMarker`(앵커·피벗 중앙, `CanvasGroup` 알파 0·레이캐스트 차단 끔, `HitMarkerController`) 생성, 자식 `BarA`(Image, Z 회전 +45°)·`BarB`(Image, Z 회전 -45°, 즉 315°) — 앵커·피벗 중앙, 24×3, 흰색, Raycast Target 끔. 다시 읽어 확인한 4칸: `_damageDealer`=`Player`의 DamageDealer, `_group`=`HitMarker`의 CanvasGroup, `_barA`·`_barB`=각 Image — None 없음. 인스펙터 값은 기본값(길이 24·두께 3·표시 0.08초·사라지는 속도 6·갱신 방식 `Restart`). `HUD` 자식 순서 `Vignette → HealthBar → AmmoText → WaveText → KillText → ResultPanel → Crosshair → HitMarker`(조준점 위). 기존 `HUDController`·`CrosshairController`·`VignetteController`의 참조는 전부 None 0 그대로. 콘솔에는 이전에 보고한 `BulletTracer`의 `MissingReferenceException`만 남아 있고 새 에러·경고 없음. 씬 저장 안 함.
+**AI 검증(플레이 모드에서 `Fire()`와 `Update`를 직접 호출, 프레임이 1~2에서 멈춤)**: ✔ 시작 알파 0 → 적(표적) 명중 직후 알파 1 → 표시 유지 구간(3번 업데이트) 알파 1.00 → 이후 줄어들어 4번 더 0.76 → 표시 중 2번째 명중 시 다시 1.00(`Restart`) → 40번 업데이트 뒤 0.00 → 빗나감(위로 발사)은 알파 0 그대로. 테스트 후 플레이를 멈췄고 `timeScale` 1·편집 모드 알파 0 확인, 씬은 저장하지 않음. **확인하지 못한 것**: 실제 화면에서 X의 모양·크기·조준점과의 겹침, 실시간 사라지는 속도의 체감, 조준 사격 중 표시 — 사람의 플레이 테스트 필요.
+
+#### 후속 프롬프트 (2차 리뷰 지적 ① 수정 — BulletTracer 정지 시 예외)
+```
+1번부터 고쳐줘
+```
+**결과(파일 1개)**: `BulletTracer.cs` — 풀 반환·파괴 콜백을 파괴된 공을 건너뛰는 정적 메서드 `ReleaseBall`·`DestroyBall`로 바꾸고, `OnDisable`에서 파괴된 공은 풀로 돌려보내지 않고 건너뜀(`ShotEffects`에 이미 적용한 방식과 같음). 구독/해제·풀링·이동 로직은 변경 없음. 컴파일 에러 0건.
+**검증(AI)**: 콘솔을 비운 뒤 원래 상황을 재현 — 플레이 모드에서 20발을 연달아 발사해 날아가는 공 20개가 남은 채로 플레이를 정지 → 콘솔 에러·경고·로그 0건(이전에는 정지 때마다 `MissingReferenceException` 1건). 정지 후 `timeScale` 1 확인, 씬 저장 안 함. **확인하지 못한 것**: 플레이 중 실제로 공이 날아가는 모습에는 영향이 없음을 직접 보지는 못함(코드 변경이 정지 처리 쪽뿐이라는 점만 확인) — 사람의 플레이 테스트 필요. 2차 리뷰의 나머지 지적(②~⑫)은 아직 수정하지 않음.
+
+#### 후속 프롬프트 (2차 리뷰 지적 중 심각도 높은 순 3개 수정)
+```
+심각도 높은 순으로 3개 고쳐줘
+```
+**AI의 선택과 이유**: 1번(`BulletTracer` 예외)은 이미 고쳤으므로 남은 지적 중 높은 순은 ② 에이전트 경로 재계산, ③ `RangedEnemyAI` `enabled = false`, ④ 책임 혼재였음. ④(`GameManager`·`WaveSpawner`·`WeaponSystem` 분리)는 공개 API·이벤트 시그니처를 건드리는 큰 리팩터링이라 CLAUDE.md 규칙 7(설계안 2~3개를 장단점과 함께 제시, 선택은 사용자)에 따라 이번에 구현하지 않고, 대신 ④의 `WeaponSystem` 부분이자 ⑤의 일부인 **디버그 히트 마커 제거**를 세 번째로 처리함(AI의 판단 — 사용자가 순서 그대로가 아니라 다른 것을 원했다면 알려야 함).
+**결과(파일 5개)**: ① **경로 재계산 간격 제한** — `EnemyBase.cs`에 `_repathInterval`(기본 0.25초, 인스펙터 노출, 값은 AI가 정함)과 `SetDestinationThrottled()`·`ResetRepathTimer()` 추가(재사용 초기화 때 타이머도 초기화), `EnemyAI.cs`·`ChargerAI.cs`·`RangedEnemyAI.cs`의 매 프레임 `SetDestination`을 간격 제한 호출로 교체(`ChargerAI`의 돌진 시작 때 한 번 쓰는 목적지 지정은 그대로). 추적으로 돌아갈 때(`EnemyAI`의 Chase 진입, `ChargerAI`의 후딜레이 종료)는 타이머를 초기화해 간격을 기다리지 않고 새 경로를 바로 잡음. 세 적 프리팹은 새 필드에 값이 없어 코드 기본값 0.25가 적용됨을 읽어서 확인. ② **`RangedEnemyAI`** — 투사체 프리팹이 비어도 컴포넌트를 끄지 않고(`enabled = false` 제거, 에러 로그는 유지) `Fire()`에서 건너뜀 → 기반 클래스의 사망 구독이 유지되어 죽은 적이 풀로 반환됨. ③ **`WeaponSystem.cs`** — 디버그 히트 마커(노란 구체: `SpawnHitMarker`·`CacheHitMarkerResources`·관련 필드 5개·머티리얼 정리 코드) 삭제. 발사·탄약·재장전·`ShotHit`·`AmmoChanged`·`ShotFired` 로직 변경 없음. 컴파일 에러·경고 0건.
+**CLAUDE.md 규칙 초과 기록**: 작업 규칙 1(한 번에 파일 1~2개)을 초과해 5개 파일을 수정 — 사용자가 3개 수정을 한꺼번에 요청했고, 경로 간격 제한은 기반 클래스와 세 종류 AI가 한 묶음이라 나눌 수 없다고 판단해 보고함.
+**검증(AI, 플레이 모드에서 메서드 직접 호출, 프레임이 1~2에서 멈춤)**: ✔ 경로 간격 — 다음 허용 시각이 미래(0.5)일 때 `Update`를 5번 호출해도 값이 그대로(호출 건너뜀), 시각이 지난 것(0)으로 두면 1번 호출에 0.25로 갱신(호출됨). ✔ 투사체 프리팹이 없는 원거리 적을 만들어 `Awake`를 돌려 보니 컴포넌트가 켜진 채 유지(`enabled=True`), `Fire()`는 예외 없이 건너뜀(생성된 오브젝트 0개). ✔ `WeaponSystem`의 `SpawnHitMarker` 삭제와 기존 연결(입력 에셋·카메라)·발사 간격 0.15·탄창 12 유지. 테스트 후 플레이를 멈췄고 `timeScale` 1, 테스트용 임시 오브젝트 정리 확인, 테스트가 일부러 낸 에러 로그 1건(투사체 프리팹 없음)은 확인 뒤 콘솔을 비움. **확인하지 못한 것**: 시간이 흐르는 동안 적이 실제로 플레이어를 부드럽게 따라가는지(경로 갱신이 0.25초마다라 약간 지연될 수 있음), 성능이 실제로 나아졌는지(프로파일링 안 함), 노란 구체가 사라진 화면 — 사람의 플레이 테스트 필요.
+**알아둘 점(AI)**: ① `WeaponSystem`의 Hit Mask 씬 값이 지난번에 AI가 설정한 -5가 아니라 51(Default·TransparentFX·Water·UI)로 읽힘 — AI가 바꾼 것이 아니고 사용자가 직접 바꾼 것으로 추정(미확인). 적·바닥·벽·표적이 모두 Default 레이어라 명중에는 문제가 없고 `Ignore Raycast`(탄피)는 여전히 제외됨. ② 2차 리뷰 지적 ⑤의 나머지(`HitParticleSpawner` 풀링, `RangedEnemyAI` 투사체 풀링)·④의 `GameManager`/`WaveSpawner` 분리 등은 아직 수정하지 않음.
+
+#### 후속 질문 (AI 리뷰 지적 검증 — "캐시 무제한 증가")
+```
+<9. 캐시가 무제한으로 늘어난다>는 틀린 것 같아. 키는 총알에 맞은 콜라이더라서 씬에 있는 콜라이더 수로 제한되고 있는거 아니야?
+내가 잘못 이해한 건지, 지적이 틀린 건지 확인해줘.
+```
+**AI 확인 결과(코드·씬 수정 없음)**: **사용자의 이해가 맞고, AI의 "무제한으로 늘어난다"는 표현이 과장이었음.** 근거: `DamageDealer`의 캐시 키는 레이가 실제로 맞힌 콜라이더(`DamageDealer.cs:13·38-41`)라 서로 다른 콜라이더 수만큼만 늘어남. 씬의 콜라이더는 10개(`Floor` 2·`Targets` 3·`Wall` 4·`Player` 1, 전부 비트리거, 편집 모드에서 센 값)이고 `Player`의 것은 자기 레이가 맞히지 않음 → 정적 키 최대 9개. 적은 풀링되어 재사용되고 `WaveSpawner`의 대기 조건(`WaveSpawner.cs:122`)이 풀 크기를 `_maxPoolSize`(32) 이하로 묶어 풀 상한 초과 파괴(`OnDestroyEnemy`)가 실제로는 일어나지 않으므로, 종류 3개 × 32 = 최대 96개가 상한. 합쳐도 약 105개 안팎에서 멈추며, 씬을 다시 로드하면 `DamageDealer`가 새로 만들어져 캐시도 비워짐. 총알(투사체)·탄피는 레이가 트리거를 무시하거나(`QueryTriggerInteraction.Ignore`) 제외 레이어라 키가 되지 않음. 따라서 "무제한 증가"·"파괴된 콜라이더 키가 남는다"는 **현재 구조에서는 사실이 아닌 이론상 가능성**이었음(콜라이더가 계속 새로 만들어졌다 사라지는 구조가 생기면 그때 문제). 9번에서 **여전히 유효한 부분**: ① `target is Health`가 `IDamageable` 추상화에 구체 타입을 새게 함(`DamageDealer.cs:47`, 캐시와 무관한 별개 지적) ② 첫 조회 때 `GetComponentInParent`가 `Update` 호출 사슬 안에서 실행됨(`DamageDealer.cs:40`, 콜라이더당 1회라 영향은 작음). 3-4 표의 "내 판정"·"근거"는 본인이 쓸 칸이라 비워 둠.
+
+#### 후속 프롬프트 (2차 리뷰의 나머지 지적을 심각도 순으로 수정 — 부분 수행, Unity 연결 끊김)
+```
+나머지 지적도 심각도 순으로 고쳐줘
+```
+**AI의 범위 판단**: 기계적으로 고칠 수 있는 것은 수정하고, 구조·공개 API를 바꾸는 큰 항목은 CLAUDE.md 규칙 6·7(공개 API 유지, 설계안 제시 후 사용자가 선택)에 따라 구현하지 않고 선택지를 제시함. 이전 답변에서 사용자가 틀렸다고 확인한 "캐시 무제한 증가"는 수정 대상에서 뺌.
+**코드 수정(파일로만 수정 — 컴파일·실행 검증 못 함)**: ⑤ `HitParticleSpawner.cs`를 `ObjectPool<ParticleSystem>` 풀링으로 교체(재생이 끝난 것만 `IsAlive`로 확인해 반환, 상한 `_maxParticles` 16, 파괴된 대상 건너뛰기), `EnemyProjectile.cs`에 풀 반환 핸들러·수명 타이머·중복 반환 방지 추가, `RangedEnemyAI.cs`에 적마다 작은 투사체 풀(`_projectilePoolSize` 4)과 `OnDestroy` 정리 추가 / ⑥ `WeaponSystem.cs`에 `HitMask` 읽기 전용 프로퍼티 추가, `ShotEffects.cs`가 시작할 때 탄피 레이어가 Hit Mask에 포함돼 있으면 에러 로그 / ⑦ `RecoilController`에 `[DefaultExecutionOrder(-50)]` / ⑪ `RecoilController.Update`에 반동이 0이면 조기 반환 / ⑫ `WaveSpawner`가 `OnEnable`에서 사망 구독을 다시 걸고(`OnDisable`에서 목록을 비우지 않음), 웨이브가 0개면 에러 로그 후 시작하지 않음 / ⑫ `GameManager`가 종료 시 `AimController`·`DashController`도 끔(직렬화 칸 2개 추가) / ⑫ `AimController`의 FOV 쓰기를 목표 도달 후 건너뜀. 작업 규칙 1(한 번에 파일 1~2개) 초과: 수정 파일 약 10개.
+**미완료·위험 상태(중요)**: 작업 도중 Unity MCP(WebSocket)가 끊겨 컴파일 확인·콘솔 확인·씬/프리팹 수정을 하지 못함(`Unity session not ready`, Editor.log에 MCP 전송 예외). 보조 MCP(`unity-editor-mcp`)는 다른 프로젝트(COOKER)에 연결돼 있어 **사용하지 않음**. 이 때문에 아래 Unity 쪽 후속이 남음 — ① `Assets/Prefabs/HitSpark.prefab`의 파티클 Stop Action을 `None`으로(지금은 `Destroy`라 풀링된 파티클이 스스로 파괴됨) ② 씬 `GameManager`의 새 칸 `_aimController`·`_dashController` 연결(비어 있으면 `Awake`가 에러를 내고 `GameManager`가 꺼져 게임 상태 전환이 동작하지 않음) ③ 컴파일 에러·콘솔 확인과 플레이 테스트. **구현하지 않고 선택을 요청한 항목**: ④ `GameManager`·`WaveSpawner` 책임 분리, ⑧ 시작 대기 타이머 이중화·`AimController`의 입력 override, ⑨ `target is Health`(`IDamageable` 공개 API 변경 필요), ⑩ `CrosshairController`·`VignetteController` 보간 중복, `CameraShake`↔`WeaponSystem` 레이 원점, 네임스페이스 순환.
+
+#### 후속 프롬프트 (MCP 재연결 뒤 이어서 — 남은 Unity 작업과 검증)
+```
+MCP 다시 연결했어, 이어서 해줘
+```
+**결과**: 재연결 후 컴파일 성공, 콘솔 에러·경고 0건. ① `HitSpark.prefab`의 파티클 Stop Action이 이미 `None`으로 저장돼 있음을 확인(끊기기 직전 호출이 반영된 것으로 보임) ② 씬 `GameManager`의 새 칸 `_aimController`·`_dashController`를 `Player`의 해당 컴포넌트로 연결, 다시 읽어 6칸 모두 값 있음 확인. 씬 저장 안 함.
+**검증(AI, 플레이 모드)**: ✔ 히트 파티클 풀 — 3발 → 활성 3개·컨테이너 자식 3개, 재생이 끝난 하나를 반환시키면 활성 2개로 줄고 비활성, 다음 발사가 같은 인스턴스를 재사용(자식 수 3 유지), 30발 더 쏴도 활성 16개(상한)·자식 16개 ✔ 적 투사체 풀 — 3발 발사 → 투사체 3개, 수명 만료 하나가 풀로 반환(비활성), 반환된 투사체에 늦게 트리거 이벤트가 와도 예외 없음(중복 반환 방지), 다음 발사가 반환된 같은 인스턴스를 재사용(총 3개 유지) ✔ FOV — 조준 시 40.000, 해제 후 60.000으로 정확히 수렴 ✔ `WaveSpawner`를 껐다 켠 뒤에도 풀의 적이 죽으면 킬이 0→1로 집계(구독 유지) ✔ 플레이어 사망 시 `PlayerController`·`WeaponSystem`·`AimController`·`DashController`가 모두 꺼지고 상태 GameOver·`timeScale` 0·커서 해제(사망은 재연결 뒤 Unity 창이 활성화돼 실제 시간으로 돌아간 플레이 중 적에게 죽어서 발생, 그 상태에서 확인) ✔ 시작 시 탄피 레이어 검증 에러 없음(Hit Mask가 `Ignore Raycast` 제외) ✔ 실시간 약 34초 플레이 동안 콘솔 에러 0건, 적 투사체 총 3개 유지·히트 파티클 16·탄피 32(상한)에서 멈춤, 플레이 정지 때도 에러 0건. **확인하지 못한 것**: `RecoilController`의 `[DefaultExecutionOrder(-50)]` 실제 효과 — 속성은 클래스에 붙어 있고 값 -50이 읽히지만 `MonoImporter` 값은 0으로 읽혀 런타임 실행 순서는 관찰하지 못함(효과는 최대 한 프레임 지연 차이), 웨이브 0개 가드(웨이브가 있는 씬이라 시험 안 함), 화면에서의 파티클·투사체 모습 — 사람의 플레이 테스트 필요.
+**참고(AI)**: 재연결 직후부터 Unity 창이 활성화돼 시간이 흐르는 상태로 테스트가 돌아감(이전에는 프레임이 멈춰 있었음). 테스트 후 플레이를 멈췄고 `timeScale` 1·임시 컨테이너 정리 확인. 구현하지 않은 항목(④ 책임 분리, ⑧ 타이머·입력 override, ⑨ `IDamageable`, ⑩ 중복 등)은 사용자의 선택을 기다리는 중.
 
 ### 3-5. 빌드
 

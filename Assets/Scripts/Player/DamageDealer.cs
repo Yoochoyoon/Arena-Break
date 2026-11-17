@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using ArenaBreak.Core;
 using UnityEngine;
@@ -11,6 +12,9 @@ namespace ArenaBreak.Player
 
         private readonly Dictionary<Collider, IDamageable> _damageableCache = new Dictionary<Collider, IDamageable>();
         private WeaponSystem _weaponSystem;
+
+        // 레이가 맞았다는 ShotHit과 달리, 실제로 데미지가 들어간 명중만 알린다
+        public event Action<RaycastHit> DamageDealt;
 
         private void Awake()
         {
@@ -37,7 +41,13 @@ namespace ArenaBreak.Player
                 _damageableCache.Add(hit.collider, target);
             }
 
-            target?.TakeDamage(_damage);
+            if (target == null || _damage <= 0) return;
+
+            // Health는 죽은 대상의 데미지를 무시하므로, 이미 죽은 대상을 쏜 것은 데미지가 들어간 것으로 치지 않는다
+            if (target is Health health && health.IsDead) return;
+
+            target.TakeDamage(_damage);
+            DamageDealt?.Invoke(hit);
         }
     }
 }

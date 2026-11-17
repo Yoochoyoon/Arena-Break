@@ -68,6 +68,18 @@ namespace ArenaBreak.Core
             StartCoroutine(RunWaves());
         }
 
+        // 껐다 켜도 이미 만들어 둔 적의 사망을 계속 세도록, 끌 때 푼 구독을 켤 때 다시 건다
+        private void OnEnable()
+        {
+            foreach (Health health in _pooledHealths)
+            {
+                if (health != null)
+                {
+                    health.Died += HandleEnemyDied;
+                }
+            }
+        }
+
         private void OnDisable()
         {
             UnsubscribePooledEnemies();
@@ -75,6 +87,13 @@ namespace ArenaBreak.Core
 
         private IEnumerator RunWaves()
         {
+            // 웨이브가 없으면 바로 전체 클리어가 되어 게임이 시작하자마자 끝난다
+            if (_waves.Count == 0)
+            {
+                Debug.LogError("WaveSpawner: 웨이브가 하나도 없어 시작하지 않습니다.", this);
+                yield break;
+            }
+
             // 플레이 시작 직후 바로 적이 나오면 플레이어가 준비할 틈이 없다
             if (_firstWaveDelay > 0f)
             {
@@ -281,8 +300,6 @@ namespace ArenaBreak.Core
                     health.Died -= HandleEnemyDied;
                 }
             }
-
-            _pooledHealths.Clear();
         }
     }
 }

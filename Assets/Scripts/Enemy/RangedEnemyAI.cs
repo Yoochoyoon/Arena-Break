@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Pool;
 
 namespace ArenaBreak.Enemy
 {
@@ -15,18 +16,27 @@ namespace ArenaBreak.Enemy
         [SerializeField] private EnemyProjectile _projectilePrefab;
         [Tooltip("투사체가 나오는 위치. 비워 두면 적의 위치에서 나온다")]
         [SerializeField] private Transform _muzzle;
+        [Tooltip("이 적이 동시에 날려 둘 수 있는 투사체 수만큼의 풀 크기. 투사체 수명 ÷ 발사 간격보다 크면 충분하다")]
+        [SerializeField, Min(1)] private int _projectilePoolSize = 4;
 
         private float _nextFireTime;
+        private ObjectPool<EnemyProjectile> _projectilePool;
 
         protected override void Awake()
         {
             base.Awake();
 
+            // 컴포넌트를 끄면 기반 클래스의 OnEnable(사망 구독)도 안 불려서 죽은 적이 풀로 돌아가지 못한다.
+            // 그래서 끄지 않고 발사만 막는다
             if (_projectilePrefab == null)
             {
-                Debug.LogError("RangedEnemyAI: 투사체 프리팹을 할당해야 합니다.", this);
-                enabled = false;
+                Debug.LogError("RangedEnemyAI: 투사체 프리팹을 할당해야 합니다. 이 적은 발사하지 않습니다.", this);
             }
+        }
+
+        private void OnDestroy()
+        {
+            _projectilePool?.Dispose();
         }
 
         // 이전 생의 발사 타이머가 남으면 재사용된 적이 이유 없이 늦게 쏜다
@@ -67,13 +77,13 @@ namespace ArenaBreak.Enemy
             Vector3 direction = away.sqrMagnitude > Mathf.Epsilon ? away.normalized : -transform.forward;
 
             Agent.isStopped = false;
-            Agent.SetDestination(Player.position + direction * _keepDistance);
+            SetDestinationThrottled(Player.position + direction * _keepDistance);
         }
 
         private void Approach()
         {
             Agent.isStopped = false;
-            Agent.SetDestination(Player.position);
+            SetDestinationThrottled(Player.position);
         }
 
         // 멈춘 에이전트는 회전하지 않으므로 직접 플레이어를 바라봐야 투사체가 앞으로 나간다
@@ -94,16 +104,62 @@ namespace ArenaBreak.Enemy
             }
         }
 
-        // 발사마다 생성되고 부서지는 오브젝트라 풀링 대상이다
         private void Fire()
         {
             _nextFireTime = Time.time + _fireInterval;
 
+            if (_projectilePrefab == null) return;
+
+            // 발사하지 않는 적은 풀을 만들 필요가 없어서 처음 쏠 때 만든다
+            if (_projectilePool == null)
+            {
+                _projectilePool = CreateProjectilePool();
+            }
+
             Transform origin = _muzzle != null ? _muzzle : transform;
             Vector3 direction = (Player.position - origin.position).normalized;
 
-            EnemyProjectile projectile = Instantiate(_projectilePrefab, origin.position, Quaternion.LookRotation(direction));
+            EnemyProjectile projectile = _projectilePool.Get();
+            projectile.transform.SetPositionAndRotation(origin.position, Quaternion.LookRotation(direction));
             projectile.Launch(direction, transform, Player);
+        }
+
+        private ObjectPool<EnemyProjectile> CreateProjectilePool()
+        {
+            // 생성 콜백이 풀 자신을 반환 대상으로 넘겨야 해서 변수를 먼저 선언한다
+            ObjectPool<EnemyProjectile> pool = null;
+            pool = new ObjectPool<EnemyProjectile>(
+                createFunc: () =>
+                {
+                    EnemyProjectile projectile = Instantiate(_projectilePrefab);
+                    projectile.SetReleaseHandler(pool.Release);
+                    return projectile;
+                },
+                actionOnGet: projectile => projectile.gameObject.SetActive(true),
+                actionOnRelease: ReleaseProjectile,
+                actionOnDestroy: DestroyProjectile,
+                collectionCheck: true,
+                defaultCapacity: _projectilePoolSize,
+                maxSize: _projectilePoolSize);
+
+            return pool;
+        }
+
+        // 씬이 정리되는 중에는 투사체가 먼저 파괴되어 있을 수 있다
+        private static void ReleaseProjectile(EnemyProjectile projectile)
+        {
+            if (projectile != null)
+            {
+                projectile.gameObject.SetActive(false);
+            }
+        }
+
+        private static void DestroyProjectile(EnemyProjectile projectile)
+        {
+            if (projectile != null)
+            {
+                Destroy(projectile.gameObject);
+            }
         }
     }
 }

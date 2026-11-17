@@ -26,16 +26,8 @@ namespace ArenaBreak.Player
         [SerializeField] private int _magazineSize = 12;
         [SerializeField] private float _reloadDuration = 1.5f;
 
-        [Header("Hit Marker (Debug)")]
-        [SerializeField] private Color _hitMarkerColor = Color.yellow;
-        [SerializeField] private float _hitMarkerSize = 0.2f;
-        [SerializeField] private float _hitMarkerLifetime = 0.5f;
-
         private InputAction _attackAction;
         private InputAction _reloadAction;
-
-        private Mesh _hitMarkerMesh;
-        private Material _hitMarkerMaterial;
 
         private int _currentAmmo;
         private float _nextFireTime;
@@ -44,10 +36,14 @@ namespace ArenaBreak.Player
 
         public event Action<RaycastHit> ShotHit;
         public event Action<int, int> AmmoChanged;
+        public event Action ShotFired;
 
         // HUD는 구독이 늦으면 이벤트를 놓치므로 구독하면서 현재값을 한 번 읽을 수 있게 한다
         public int CurrentAmmo => _currentAmmo;
         public int MagazineSize => _magazineSize;
+
+        // 발사 이펙트가 총알에 맞으면 안 되는 오브젝트(탄피)의 레이어가 제외돼 있는지 검증할 수 있게 연다
+        public LayerMask HitMask => _hitMask;
 
         private void Awake()
         {
@@ -70,7 +66,6 @@ namespace ArenaBreak.Player
             // 에셋에 R 액션이 없어서 코드에서 직접 만든다
             _reloadAction = new InputAction(ReloadActionName, InputActionType.Button, ReloadBinding);
 
-            CacheHitMarkerResources();
             _currentAmmo = _magazineSize;
         }
 
@@ -95,11 +90,6 @@ namespace ArenaBreak.Player
         {
             // 코드로 만든 액션은 에셋 소유가 아니라서 직접 해제해야 한다
             _reloadAction?.Dispose();
-
-            if (_hitMarkerMaterial != null)
-            {
-                Destroy(_hitMarkerMaterial);
-            }
         }
 
         private void Update()
@@ -134,9 +124,11 @@ namespace ArenaBreak.Player
             Ray ray = new Ray(_cameraTransform.position, _cameraTransform.forward);
             if (Physics.Raycast(ray, out RaycastHit hit, _range, _hitMask, QueryTriggerInteraction.Ignore))
             {
-                SpawnHitMarker(hit.point);
                 ShotHit?.Invoke(hit);
             }
+
+            // 맞았는지와 상관없이 발사된 모든 샷을 알린다. 이 샷의 레이가 끝난 뒤에 알려야 반동이 같은 샷의 방향을 바꾸지 않는다
+            ShotFired?.Invoke();
         }
 
         private void StartReload()
@@ -152,35 +144,6 @@ namespace ArenaBreak.Player
             _isReloading = false;
             _currentAmmo = _magazineSize;
             AmmoChanged?.Invoke(_currentAmmo, _magazineSize);
-        }
-
-        // 구체에 Collider가 있으면 다음 발사가 구체에 맞는다.
-        // 프리미티브를 복제하는 대신 메시/머티리얼만 꺼내 쓰고 Collider 없는 오브젝트를 직접 만든다
-        private void CacheHitMarkerResources()
-        {
-            GameObject template = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            _hitMarkerMesh = template.GetComponent<MeshFilter>().sharedMesh;
-
-            // 렌더 파이프라인 기본 머티리얼을 복제해야 URP에서 셰이더가 빌드에 빠지지 않는다
-            _hitMarkerMaterial = new Material(template.GetComponent<MeshRenderer>().sharedMaterial)
-            {
-                color = _hitMarkerColor
-            };
-
-            Destroy(template);
-        }
-
-        // 풀링 대상: 연사 중 0.15초마다 생성되고 0.5초 뒤 파괴된다
-        private void SpawnHitMarker(Vector3 position)
-        {
-            GameObject marker = new GameObject("HitMarker");
-            marker.transform.position = position;
-            marker.transform.localScale = Vector3.one * _hitMarkerSize;
-
-            marker.AddComponent<MeshFilter>().sharedMesh = _hitMarkerMesh;
-            marker.AddComponent<MeshRenderer>().sharedMaterial = _hitMarkerMaterial;
-
-            Destroy(marker, _hitMarkerLifetime);
         }
     }
 }

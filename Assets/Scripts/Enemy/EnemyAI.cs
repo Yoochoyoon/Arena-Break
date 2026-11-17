@@ -99,7 +99,7 @@ namespace ArenaBreak.Enemy
             }
             else
             {
-                Agent.SetDestination(Player.position);
+                SetDestinationThrottled(Player.position);
             }
         }
 
@@ -139,6 +139,11 @@ namespace ArenaBreak.Enemy
 
             // 공격 중에는 제자리에 서 있어야 하고, 추적으로 돌아가면 다시 움직여야 한다
             Agent.isStopped = next != State.Chase;
+
+            if (next == State.Chase)
+            {
+                ResetRepathTimer();
+            }
         }
 
         private float SqrDistanceToPlayer()
