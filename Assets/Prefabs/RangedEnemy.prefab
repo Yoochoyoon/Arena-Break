@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 7007099295497763514}
   - component: {fileID: 4202734062764905196}
   - component: {fileID: 6924988242225540046}
+  - component: {fileID: 7739785262234697459}
   m_Layer: 0
   m_Name: RangedEnemy
   m_TagString: Untagged
@@ -172,3 +173,18 @@ MonoBehaviour:
   _fireInterval: 2
   _projectilePrefab: {fileID: 3316404974451114865, guid: a2d3fc6907109234a9eecdac135ecc9c, type: 3}
   _muzzle: {fileID: 0}
+--- !u!114 &7739785262234697459
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5309801663191746137}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5cf9938dca0b1d47b3ee056cfa46f45, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Enemy.HitFlash
+  _renderer: {fileID: 0}
+  _flashColor: {r: 1, g: 1, b: 1, a: 1}
+  _flashDuration: 0.05

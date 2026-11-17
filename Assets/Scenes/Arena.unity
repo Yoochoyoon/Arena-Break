@@ -2180,6 +2180,7 @@ GameObject:
   - component: {fileID: 1689303479}
   - component: {fileID: 1689303481}
   - component: {fileID: 1689303480}
+  - component: {fileID: 1689303482}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -2335,6 +2336,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Player.DamageDealer
   _damage: 10
+--- !u!114 &1689303482
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1689303473}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f63c600b11c8e94e893a896e032b132, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Player.CameraShake
+  _playerHealth: {fileID: 1689303480}
+  _cameraTransform: {fileID: 330585546}
+  _duration: 2
+  _intensity: 0.05
 --- !u!1 &1763360054
 GameObject:
   m_ObjectHideFlags: 0

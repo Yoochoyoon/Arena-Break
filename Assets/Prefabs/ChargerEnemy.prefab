@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 4805304642342126604}
   - component: {fileID: 4189213921369035391}
   - component: {fileID: 9029994121230434505}
+  - component: {fileID: 4398439401469227192}
   m_Layer: 0
   m_Name: ChargerEnemy
   m_TagString: Untagged
@@ -161,6 +162,9 @@ MonoBehaviour:
   _chargeCooldown: 3
   _windupDuration: 0.6
   _recoveryDuration: 0.8
+  _contactDamage: 10
+  _contactRange: 1.5
+  _contactInterval: 1
 --- !u!114 &9029994121230434505
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -175,3 +179,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Core.Health
   _maxHealth: 1
   _currentHealth: 1
+--- !u!114 &4398439401469227192
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2851841169315097895}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5cf9938dca0b1d47b3ee056cfa46f45, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaBreak.Enemy.HitFlash
+  _renderer: {fileID: 0}
+  _flashColor: {r: 1, g: 1, b: 1, a: 1}
+  _flashDuration: 0.05
