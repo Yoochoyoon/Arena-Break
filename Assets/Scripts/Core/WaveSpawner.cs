@@ -25,11 +25,16 @@ namespace ArenaBreak.Core
         public event Action<int> WaveStarted;
         public event Action<int> WaveCleared;
         public event Action AllWavesCleared;
+        public event Action<int> EnemyKilled;
+
+        // HUD는 구독이 늦으면 이벤트를 놓치므로 구독하면서 현재값을 한 번 읽을 수 있게 한다
+        public int KillCount => _killCount;
 
         private readonly List<Transform> _spawnPoints = new List<Transform>();
         private readonly Dictionary<EnemyBase, ObjectPool<EnemyBase>> _pools = new Dictionary<EnemyBase, ObjectPool<EnemyBase>>();
         private readonly List<Health> _pooledHealths = new List<Health>();
         private int _aliveCount;
+        private int _killCount;
 
         // 풀의 콜백(생성, 꺼내기)이 위치를 직접 받을 수 없어서 꺼내기 직전에 여기에 적어 둔다
         private Vector3 _spawnPosition;
@@ -168,6 +173,9 @@ namespace ArenaBreak.Core
         private void HandleEnemyDied()
         {
             _aliveCount--;
+            _killCount++;
+
+            EnemyKilled?.Invoke(_killCount);
         }
 
         // 웨이브에 쓰이는 프리팹마다 풀을 미리 만들어 두면 웨이브 도중 Instantiate 비용이 생기지 않는다

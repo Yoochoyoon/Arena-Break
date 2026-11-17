@@ -973,7 +973,125 @@ AI가 스크립트에 `Debug.Log`가 하나도 없다는 것(2-5에서 모두 �
 
 ### 3-2. HUD
 
+#### 시도 1 (HUD용 이벤트 추가)
+```
+HUD가 구독할 수 있도록 두 곳에 이벤트를 추가해줘.
+
+- WeaponSystem: 탄약이 변할 때 (현재, 최대) 를 알리는 이벤트.
+  기존 Debug.Log는 지울 것 — 이제 화면에 나온다
+- WaveSpawner: 적이 죽을 때마다 누적 킬 수를 알리는 이벤트.
+  이미 각 적의 사망 이벤트를 구독하고 있으니 거기서 세면 된다
+
+기존 기능과 공개 이벤트 시그니처는 그대로 유지할 것.
+파일 2개만 수정하고 다른 파일은 건드리지 마.
+```
+**결과(파일 2개)**: `WeaponSystem` — `public event Action<int, int> AmmoChanged`(현재, 최대) 추가, 발사로 탄약이 줄 때와 재장전이 끝나 탄약이 차오를 때 발행(재장전을 시작하는 순간은 탄약이 안 변해서 발행하지 않음). `WaveSpawner` — `public event Action<int> EnemyKilled`(누적 킬 수) 추가, 이미 구독 중인 적 사망 핸들러(`HandleEnemyDied`)에서 `_killCount++` 후 발행. 기존 이벤트(`ShotHit`, `WaveStarted`, `WaveCleared`, `AllWavesCleared`)의 시그니처는 그대로(리플렉션으로 확인), `git diff`는 `WeaponSystem` +7줄·`WaveSpawner` +8줄로 삭제 없이 추가만. 컴파일 에러·경고 0건, `Player`의 `WeaponSystem` 연결(입력 에셋·카메라) 유지. 다른 파일·씬은 수정하지 않음.
+**요청에 없던 추가(AI)**: HUD가 구독하기 전의 값을 읽을 수 있도록 읽기 전용 프로퍼티 `WeaponSystem.CurrentAmmo`·`MagazineSize`, `WaveSpawner.KillCount`를 함께 추가함(2-1에서 정한 "HUD가 구독하면서 현재값을 한 번 읽는다" 방침과 같음). 이벤트만으로는 HUD가 늦게 켜지면 초기 탄약·킬 수를 알 수 없어서이며, 필요 없으면 지울 수 있음.
+**"기존 Debug.Log는 지울 것"에 대해(AI)**: 지울 로그가 이미 없었음 — 탄약 로그는 2-5 "로그 지우기"에서, 임시 로그는 3-1 마무리에서 삭제됨. 스크립트 폴더에서 `Debug.Log` 검색 결과 0건으로 확인.
+**미확인**: 이벤트가 실제로 발행되는지는 플레이로 확인하지 못함(구독하는 HUD가 아직 없음). 킬 수는 풀 프리워밍이 아니라 실제 사망 때만 오르는 구조(코드 확인).
+
+#### 시도 2 (HUDController 작성)
+```
+HUD를 만들어줘. UI Toolkit 말고 uGUI로.
+텍스트는 TextMeshPro 말고 레거시 UnityEngine.UI.Text를 쓸 것.
+(TMP를 처음 쓰면 임포트 창이 떠서 그동안 MCP가 멈춘다)
+표시할 것:
+
+* 좌하단: 체력바. 어두운 배경 Image 안에 빨간 Image를 넣고,
+그 빨간 Image의 RectTransform 앵커 폭으로 줄일 것.
+Image.fillAmount는 쓰지 마.
+Health의 HealthChanged 이벤트 구독
+* 우하단: 탄약 "현재 / 최대".
+WeaponSystem의 탄약 변경 이벤트 구독
+기존 WeaponSystem에 해당 이벤트가 없다면 최소한의 이벤트만 추가할 것.
+발사 시 탄약 감소, 재장전 완료 시 탄약 회복을 이벤트로 전달할 것.
+* 상단 중앙: 웨이브 번호.
+WaveSpawner의 웨이브 시작 이벤트 구독
+* 상단 우측: 킬 수.
+WaveSpawner의 킬 수 변경 이벤트 구독
+킬 수는 ShotHit가 아니라 적의 실제 사망을 기준으로 증가시킬 것.
+동일한 적이 여러 번 피격되어도 킬 수는 한 번만 증가해야 한다.
+적의 Health 사망 처리 구조와 WaveSpawner의 적 생성 및 관리 구조를 먼저 확인한 뒤 연결할 것.
+* 화면 중앙: GameOver / Cleared 안내 문구와 "R키로 재시작".
+평소에는 숨기고 GameManager의 상태 이벤트로 켤 것.
+
+[기존 코드 호환성 및 수정 규칙]
+
+* 작업 전에 Health, WeaponSystem, WaveSpawner, GameManager의 실제 코드를 먼저 확인할 것.
+* 기존에 존재하지 않는 이벤트나 메서드를 임의로 가정하지 말 것.
+* 필요한 이벤트가 없다면 기존 구조를 유지하면서 최소한으로 추가할 것.
+* 킬 집계 로직을 새로 만들 때 기존 적 생성 및 사망 처리 구조와 중복되지 않도록 할 것.
+* 기존 무기 발사, 재장전, 적 사망, 웨이브 진행 로직을 임의로 변경하지 말 것.
+* 불필요한 리팩터링 및 새 파일 생성을 금지한다.
+* 기존 이벤트 이름과 매개변수 형식을 확인하고 HUDController에서 정확하게 구독할 것.
+
+[구현 규칙]
+
+* Update()에서 폴링하지 말 것. 전부 이벤트 구독으로 UI 갱신
+* 구독은 OnEnable, 구독 해제는 OnDisable
+* 참조는 전부 [SerializeField]로 받을 것.
+* Find 계열 금지
+* OnEnable에서 이벤트 구독 후 현재 상태를 한 번 초기화하여 UI가 비어 있지 않도록 할 것.
+* 이벤트가 발생할 때마다 해당 UI만 갱신할 것.
+
+파일: Assets/Scripts/UI/HUDController.cs 하나만 생성.
+기존 파일은 필요한 이벤트 추가 및 연결에 한해서만 최소 수정할 것.
+UI 오브젝트는 아직 만들지 말고, 어떤 오브젝트가 필요한지 목록과 각 오브젝트의 컴포넌트 및 Inspector 연결 방법만 알려줘.
+작업 완료 후:
+
+1. 수정 및 생성한 파일 목록
+2. 각 이벤트의 실제 이름과 연결 관계
+3. 킬 수가 중복 집계되지 않는 구조인지
+4. Unity 콘솔 에러 및 경고 여부
+를 보고해줘.
+```
+**결과(파일 1개 생성, 기존 파일 수정 없음)**: `Assets/Scripts/UI/HUDController.cs`(`ArenaBreak.UI`). 이벤트는 직전 3-2 시도 1에서 이미 추가돼 있어 이번에 기존 파일을 고치지 않음. 연결: `Health.HealthChanged(int,int)`→체력바 앵커 폭, `WeaponSystem.AmmoChanged(int,int)`→탄약 텍스트, `WaveSpawner.WaveStarted(int)`→웨이브 텍스트, `WaveSpawner.EnemyKilled(int)`→킬 텍스트, `GameManager.StateChanged(GameState)`→결과 패널 표시. 모두 `OnEnable` 구독·`OnDisable` 해제, `Update` 없음, `Find` 없음, 참조는 전부 `[SerializeField]`, `fillAmount` 미사용. `OnEnable`에서 `CurrentHealth`/`MaxHealth`/`CurrentAmmo`/`MagazineSize`/`KillCount`/`CurrentState`를 한 번 읽어 초기화. 컴파일 에러·경고 0건(MCP WebSocket 경고만), `HUDController` 로드·직렬화 필드 15개 확인. 씬에는 UI 오브젝트도 컴포넌트도 만들지 않음(씬의 `HUDController` 컴포넌트 0개).
+**킬 수 중복 집계 구조(AI 코드 확인)**: 킬은 `ShotHit`가 아니라 `WaveSpawner`가 적 `Health.Died`를 구독하는 `HandleEnemyDied`에서만 오름. `Health.TakeDamage`는 이미 죽은 상태면 즉시 반환하고 `Died`는 체력이 0이 되는 순간에만 발행되므로 한 번 죽는 동안 여러 번 맞아도 한 번만 증가. 풀링된 적은 `Restore()`로 부활한 뒤 다시 죽으면 새 생이므로 다시 셈(의도). `Died` 구독은 적을 만들 때 한 번만 하고 풀 파괴/`OnDisable`에서 해제해 중복 구독 없음. 플레이로는 확인하지 못함.
+**요청과 다르게 한 부분 / 알아둘 점(AI)**: ① `Start()`에서 체력·탄약을 한 번 더 읽음 — `Health`·`WeaponSystem`은 `Awake`에서 현재값을 채우는데 오브젝트 간 `Awake`/`OnEnable` 순서가 정해져 있지 않아 `OnEnable`만으로는 0으로 읽힐 수 있어서(요청의 "폴링 금지"는 지킴). ② 웨이브 번호의 초기값은 `WaveSpawner`에 현재 웨이브를 읽는 프로퍼티가 없어 0("WAVE 0")으로 표시됨 — 첫 웨이브 시작 전까지. ③ 안내 문구 "R키로 재시작"은 코드가 아니라 결과 패널 안의 정적 Text로 두는 것을 전제(코드는 제목 Text만 바꿈). ④ 레거시 `Text`의 기본 폰트가 한글을 못 그릴 수 있어 한글 문구는 폰트 지정 필요(미확인). 
+**미확인**: 씬에 UI가 없어 실제 화면 표시·동작은 확인하지 못함.
+
+#### 후속 프롬프트 (HUD UI 오브젝트 생성 + 연결, MCP 직접 작업)
+```
+방금 알려준 UI 오브젝트들을 씬에 만들고 HUDController 에 연결해줘. MCP 도구로 직접 해줘.
+
+끝나면 HUDController 의 각 참조 칸에 실제로 값이 들어갔는지 다시 읽어서 보여줘.
+```
+**결과**: 씬 루트에 `HUD`(Canvas — Screen Space Overlay, `CanvasScaler` Scale With Screen Size 1920×1080·Match 0.5, `HUDController`) 생성. 자식: `HealthBar`(어두운 Image, 좌하단, 320×32) 안에 `HealthFill`(빨간 Image, 앵커 (0,0)~(1,1)·오프셋 0·Pivot (0,0.5)), `AmmoText`(우하단), `WaveText`(상단 중앙), `KillText`(상단 우측), `ResultPanel`(반투명 Image, 전체 화면, 시작 시 비활성) 아래 `Title`("GAME OVER" 자리 표시)과 `RestartHint`("R키로 재시작"). 모든 Text는 레거시 `UnityEngine.UI.Text`, 폰트는 내장 `LegacyRuntime.ttf`, Raycast Target 끔. 크기·위치·색·글자 크기·자리 표시 문구는 AI가 정함. 다시 읽어 확인한 `HUDController` 10칸: `_playerHealth`=Player의 Health, `_weaponSystem`=Player의 WeaponSystem, `_waveSpawner`·`_gameManager`=GameManager 오브젝트의 컴포넌트, `_healthFill`=HealthFill의 RectTransform(앵커 (0,0)~(1,1)·오프셋 0 확인), `_ammoText`·`_waveText`·`_killText`·`_resultTitleText`=각 Text, `_resultPanel`=ResultPanel(비활성) — None 없음. 콘솔 에러·경고 0건. 씬 저장 안 함. 플레이 테스트 전(사람이 확인) — 한글 문구가 내장 폰트에서 실제로 보이는지, 체력바·탄약·웨이브·킬·결과 패널 표시는 미확인.
+
+#### 후속 프롬프트 (3-2 HUD 검증 체크리스트 — 사람 판정 + AI 재검증)
+```
+□ HUDController 인스펙터에 None 인 칸이 하나도 없다
+□ 체력바가 있고, 적에게 맞으면 줄어든다
+□ 탄약이 화면에 나오고, 쏘면 줄어든다
+□ R로 재장전하면 탄약 표시가 최대로 돌아온다
+□ 웨이브 번호가 웨이브마다 바뀐다
+□ 킬 수가 적을 죽일 때마다 올라간다
+□ 죽으면 화면 중앙에 안내 문구가 나온다
+□ 그 문구의 글자가 □ 로 깨지지 않는다 (TMP를 쓴 경우 한글이 깨집니다)
+□ 콘솔에 탄약 로그가 더 이상 안 나온다 (화면으로 옮겼으므로)
+□ 콘솔에 에러가 없다
+
+플레이 테스트는 통과고 너가 한번 더 검증해
+```
+**사람의 플레이 테스트 판정**: 사용자가 위 10개 항목을 직접 플레이해 통과했다고 판정함(AI는 이 부분을 직접 보지 못했고 사용자의 판정에 따름).
+**AI 재검증(플레이 모드에서 메서드·이벤트를 직접 호출, 프레임이 2에서 멈춘 상태라 시간 흐름이 필요한 동작은 제외)**: ✔ HUDController 10칸 None 0개. ✔ 초기 표시: 탄약 `12 / 12`, 웨이브 `WAVE 0`, 킬 `KILLS 0`, 체력바 앵커 폭 1.00, 결과 패널 숨김. ✔ 플레이어에 100 데미지 → HP 400/500, 체력바 앵커 폭 0.80. ✔ `Fire()` 2회 → 탄약 `10 / 12`. ✔ `FinishReload()` → `12 / 12`. ✔ `WaveStarted(3)` 발행 → `WAVE 3`. ✔ 풀의 적(24마리) 하나를 죽이고 같은 적에 추가 피격 → `KILLS 1`, `KillCount` 1(중복 집계 없음). ✔ 플레이어 사망 → 결과 패널 켜짐, 제목 `GAME OVER`, 상태 GameOver, timeScale 0. ✔ 내장 폰트(`LegacyRuntime`, 동적)가 "R키로 재시작"의 모든 글자를 가지고 있다고 응답(`HasCharacter`) — 실제 화면 렌더는 사람이 본 것으로 판단. ✔ 스크립트 폴더 `Debug.Log` 0건, 콘솔 에러·경고·로그 0건. 테스트 후 플레이를 멈추고 timeScale 1·패널 숨김·플레이어 원위치 확인, 씬은 저장하지 않음.
+**한계(AI)**: 실제 입력(클릭·R)과 적에게 맞는 흐름, 웨이브가 시간이 흘러 바뀌는 것, 실제 화면 렌더링은 직접 확인하지 못함(수동으로 이벤트를 발행해 UI 반응만 확인).
+
 ### 3-3. 게임필
+
+#### 1번 — 적 피격 시 흰색 플래시
+(앞 단계의 확인 입력: `음 다 괜찮네 다음 진행하자` — 3-2 HUD 검증에 대한 사용자 판정)
+```
+타격감을 넣어줘. 단, 한 번에 하나씩 하고 매번 내가 테스트할게.
+
+1) 적 피격 시 머티리얼을 0.05초 흰색으로 플래시
+2) 피격 시 카메라 셰이크 (0.1초, 강도는 인스펙터에서 조절)
+3) 명중 지점에 파티클
+
+1번부터 시작해. 2번은 내가 말하기 전에는 하지 마.
+```
+**결과(파일 1개 생성, 프리팹·씬 미수정)**: `Assets/Scripts/Enemy/HitFlash.cs`(`ArenaBreak.Enemy`). 적의 `Health.HealthChanged`를 구독(OnEnable/OnDisable)해 체력이 줄 때 `MaterialPropertyBlock`으로 `_BaseColor`를 흰색(`_flashColor`)으로 `_flashDuration`(기본 0.05초, 요청 값)만큼 덮은 뒤 지움. 머티리얼 자체를 바꾸지 않아 같은 머티리얼을 쓰는 다른 적이 같이 하얘지지 않음. 체력 감소 판정은 `current < max`(풀 재사용 때 `Restore()`가 최대 체력으로 보내는 이벤트는 무시). 연속 피격은 기존 코루틴을 멈추고 다시 시작, 비활성화될 때(풀 반환) 플래시를 지워 하얀 채로 재사용되지 않게 함. `Renderer`는 비워 두면 자기·자식에서 찾음(세 적 프리팹 모두 렌더러 1개). 세 적 머티리얼은 URP Lit이고 `_BaseColor` 프로퍼티 있음을 확인. 컴파일 에러·경고 0건. 흰색 지정은 `_BaseColor`만 바꾸므로 조명에 따라 완전한 흰색보다 밝은 원색으로 보일 수 있음(미확인). 2번(카메라 셰이크)·3번(파티클)은 요청대로 손대지 않음.
+**남은 작업**: 세 적 프리팹(`Enemy`·`ChargerEnemy`·`RangedEnemy`)에 `HitFlash`를 붙여야 동작함 — 프리팹 컴포넌트 연결은 사전에 물어보라는 규약에 따라 아직 하지 않고 확인을 요청함. 플레이 테스트는 사람이 해야 함.
 
 <!-- AI가 1번만 만들었는가, 3개를 다 만들었는가 -->
 

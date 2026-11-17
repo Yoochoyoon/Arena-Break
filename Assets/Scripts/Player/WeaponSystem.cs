@@ -43,6 +43,11 @@ namespace ArenaBreak.Player
         private bool _isReloading;
 
         public event Action<RaycastHit> ShotHit;
+        public event Action<int, int> AmmoChanged;
+
+        // HUD는 구독이 늦으면 이벤트를 놓치므로 구독하면서 현재값을 한 번 읽을 수 있게 한다
+        public int CurrentAmmo => _currentAmmo;
+        public int MagazineSize => _magazineSize;
 
         private void Awake()
         {
@@ -124,6 +129,7 @@ namespace ArenaBreak.Player
         {
             _nextFireTime = Time.time + _fireInterval;
             _currentAmmo--;
+            AmmoChanged?.Invoke(_currentAmmo, _magazineSize);
 
             Ray ray = new Ray(_cameraTransform.position, _cameraTransform.forward);
             if (Physics.Raycast(ray, out RaycastHit hit, _range, _hitMask, QueryTriggerInteraction.Ignore))
@@ -145,6 +151,7 @@ namespace ArenaBreak.Player
         {
             _isReloading = false;
             _currentAmmo = _magazineSize;
+            AmmoChanged?.Invoke(_currentAmmo, _magazineSize);
         }
 
         // 구체에 Collider가 있으면 다음 발사가 구체에 맞는다.
